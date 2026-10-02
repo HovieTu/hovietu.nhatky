@@ -461,13 +461,19 @@ textarea{resize:vertical;min-height:64px}
       if(el.scrollHeight<=el.clientHeight+2){el.style.maxHeight="";el.style.overflow="";return}
       var b=document.createElement("button");b.type="button";b.className="link more";
       el.parentNode.insertBefore(b,el.nextSibling);
-      function apply(open){el.style.maxHeight=open?"":mh;el.style.overflow=open?"":"hidden";el.classList.toggle("fade",!open);b.textContent=open?"Thu gọn":"Xem thêm"}
+      var card=el.closest(".task,.log,.goal"),ed=card&&card.querySelector('[data-act="edit"],[data-act="editlog"]'),tg=null;
+      if(ed){tg=document.createElement("button");tg.type="button";tg.className="link tg";tg.textContent="Thu gọn";tg.hidden=true;ed.parentNode.insertBefore(tg,ed)}
+      function apply(open){
+        el.style.maxHeight=open?"":mh;el.style.overflow=open?"":"hidden";el.classList.toggle("fade",!open);
+        b.textContent=open?"Thu gọn":"Xem thêm";if(tg)tg.hidden=!open;
+      }
       apply(!!EXP[key]);
       b.onclick=function(){EXP[key]=!EXP[key];apply(EXP[key])};
+      if(tg)tg.onclick=function(){EXP[key]=false;apply(false)};
     });
   }
   function resetClamp(){
-    document.querySelectorAll(".more").forEach(function(b){b.remove()});
+    document.querySelectorAll(".more,.tg").forEach(function(b){b.remove()});
     document.querySelectorAll("[data-clamp]").forEach(function(el){delete el.dataset.ready;el.style.maxHeight="";el.style.overflow="";el.classList.remove("fade")});
     setupClamp();
   }
