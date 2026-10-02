@@ -127,7 +127,7 @@ textarea{resize:vertical;min-height:64px}
       <p class="sub" id="today"></p>
       <p class="sub" id="sync" style="margin-top:-14px;font-size:13px">Đang lưu trên thiết bị này</p>
     </div>
-    <div class="row" style="flex:none;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost" id="logout" hidden style="min-width:0">Đăng xuất</button><button class="btn ghost" id="backup" style="min-width:0">Sao lưu</button><button class="btn ghost" id="theme" style="min-width:0" aria-label="Đổi giao diện sáng/tối">Sáng/Tối</button></div>
+    <div class="row" style="flex:none;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost" id="acct" hidden aria-label="Tài khoản" title="Tài khoản" style="min-width:0;width:42px;height:42px;padding:0;border-radius:50%;font-weight:700;background:var(--acc-t);border-color:var(--acc);color:var(--acc)"></button><button class="btn ghost" id="backup" style="min-width:0">Sao lưu</button><button class="btn ghost" id="theme" style="min-width:0" aria-label="Đổi giao diện sáng/tối">Sáng/Tối</button></div>
   </div>
 
   <div class="stats" id="stats"></div>
@@ -475,6 +475,14 @@ textarea{resize:vertical;min-height:64px}
     snap.forEach(function(d){var o=d.data();arr.push(o);sent[k][o.id]=JSON.stringify(o)});
     S[k]=arr;renderAll();setSync("Đã đồng bộ giữa các thiết bị");
   }}
+  var ACCT="";
+  function openAcct(){
+    dialog('<b style="font-size:18px">Tài khoản</b><div>Đang đăng nhập bằng<br><b style="overflow-wrap:anywhere">'+esc(ACCT)+'</b></div><div class="file">Việc, nhật ký và mục tiêu của bạn được đồng bộ giữa mọi thiết bị đăng nhập bằng tài khoản này.</div>',
+      [["Đóng"],["Sao lưu và khôi phục"],["Đăng xuất","danger"]],function(i){
+        if(i===1){$("backup").onclick();return false}
+        if(i===2){F.signOut(AUTH)}
+      });
+  }
   function onUser(u){
     unsubs.forEach(function(f){f()});unsubs=[];
     if(!u){
@@ -482,9 +490,9 @@ textarea{resize:vertical;min-height:64px}
       try{localStorage.removeItem(KEY)}catch(e){}
       Object.keys(DT).forEach(function(k){clearTimeout(DT[k])});DT={};sentD={};firstD=true;DR={};try{localStorage.removeItem(DK)}catch(e){}
       ["tTitle","tNote","lTitle","lText"].forEach(function(i){$(i).value=""});
-      app.hidden=true;$("logout").hidden=true;$("auth").hidden=false;renderAll();return;
+      app.hidden=true;$("acct").hidden=true;$("backup").hidden=false;ACCT="";$("auth").hidden=false;renderAll();return;
     }
-    uidv=u.uid;$("auth").hidden=true;app.hidden=false;$("logout").hidden=false;setSync("Đang đồng bộ...");
+    uidv=u.uid;$("auth").hidden=true;app.hidden=false;ACCT=u.email||"";$("acct").textContent=(ACCT[0]||"?").toUpperCase();$("acct").hidden=false;$("backup").hidden=true;setSync("Đang đồng bộ...");
     ["tasks","logs","goals"].forEach(function(k){
       unsubs.push(F.onSnapshot(F.collection(DBH,"users",uidv,k),snapFor(k),fail));
     });
@@ -511,7 +519,7 @@ textarea{resize:vertical;min-height:64px}
           var mail=$("aMail").value.trim();if(!mail){$("aMsg").textContent="Nhập email trước.";return}
           F.sendPasswordResetEmail(AUTH,mail).then(function(){$("aMsg").style.color="var(--acc)";$("aMsg").textContent="Đã gửi email đặt lại mật khẩu."},authErr);
         };
-        $("logout").onclick=function(){F.signOut(AUTH)};
+        $("acct").onclick=openAcct;
         try{await F.setPersistence(AUTH,F.browserSessionPersistence)}catch(e){}
         F.onAuthStateChanged(AUTH,onUser);
       }catch(e){app.hidden=false;setSync("Không kết nối được Firebase, đang lưu trên thiết bị này")}
