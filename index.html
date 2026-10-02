@@ -64,6 +64,8 @@ textarea{resize:vertical;min-height:64px}
 .rte:empty:before{content:attr(data-ph);color:var(--mute);pointer-events:none}
 .rt{margin:4px 0 0;overflow-wrap:anywhere}
 .rt div{min-height:1.5em}
+.stamp{margin-top:8px;font-size:12px;color:var(--mute)}
+.row label.file{display:grid;gap:4px}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -140,7 +142,10 @@ textarea{resize:vertical;min-height:64px}
           <option value="plan">Cần sắp xếp</option>
           <option value="done">Đã hoàn thành</option>
         </select>
-        <input id="tDue" type="date" aria-label="Hạn hoàn thành">
+      </div>
+      <div class="row">
+        <label class="file">Hạn / ngày thực hiện<input id="tDue" type="date"></label>
+        <label class="file">Giờ thực hiện (không bắt buộc)<input id="tTime" type="time"></label>
       </div>
       <label class="file"><input type="checkbox" id="tHot" style="width:auto"> Ưu tiên cao</label>
       <div><label class="file">Thêm ảnh (tối đa 5): <input type="file" id="tFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="tThumbs"></div></div>
@@ -214,7 +219,7 @@ textarea{resize:vertical;min-height:64px}
   function applyNewDrafts(){
     var d1=DR.newtask,d2=DR.newlog,fa=document.activeElement;
     if(d1&&!$("taskForm").contains(fa)&&!$("tTitle").value&&!$("tNote").value){
-      $("tTitle").value=d1.title||"";$("tNote").value=d1.note||"";$("tStatus").value=d1.status||"todo";$("tDue").value=d1.due||"";$("tHot").checked=!!d1.hot;
+      $("tTitle").value=d1.title||"";$("tNote").value=d1.note||"";$("tStatus").value=d1.status||"todo";$("tDue").value=d1.due||"";$("tTime").value=d1.time||"";$("tHot").checked=!!d1.hot;
     }
     if(d2&&fa!==$("lTitle")&&fa!==$("lText")&&!$("lTitle").value&&!$("lText").value){
       $("lTitle").value=d2.title||"";$("lText").value=d2.rich?d2.text:plainToHtml(d2.text);if(d2.date)$("lDate").value=d2.date;
@@ -278,6 +283,14 @@ textarea{resize:vertical;min-height:64px}
     var el=e.target;
     if(el.classList&&el.classList.contains("rte")&&(el.innerHTML==="<br>"||el.innerHTML==="<div><br></div>"))el.innerHTML="";
   });
+  function pad2(n){return String(n).padStart(2,"0")}
+  function fmtTs(ms){var d=new Date(ms);return pad2(d.getHours())+":"+pad2(d.getMinutes())+" "+pad2(d.getDate())+"/"+pad2(d.getMonth()+1)+"/"+d.getFullYear()}
+  function stamp(o){return o.created?'<div class="stamp">Tạo lúc '+fmtTs(o.created)+(o.updated?' · Sửa lúc '+fmtTs(o.updated):'')+'</div>':''}
+  function isLate(t){
+    if(t.status==="done"||!t.due)return false;
+    if(t.due<TODAY)return true;
+    return t.due===TODAY&&!!t.dueTime&&t.dueTime<pad2(new Date().getHours())+":"+pad2(new Date().getMinutes());
+  }
   function srcOf(x){return x.indexOf("data:")===0?x:"/_blob/"+x}
 
   /* Đồng bộ qua Firebase (đăng nhập bằng email, dữ liệu riêng từng tài khoản) */
@@ -438,7 +451,7 @@ textarea{resize:vertical;min-height:64px}
 
   function renderStats(){
     var c={todo:0,plan:0,done:0},late=0;
-    S.tasks.forEach(function(t){c[t.status]++;if(t.status!=="done"&&t.due&&t.due<TODAY)late++});
+    S.tasks.forEach(function(t){c[t.status]++;if(isLate(t))late++});
     $("stats").innerHTML=
       '<div class="stat"><b>'+c.todo+'</b><span>Chưa làm</span></div>'+
       '<div class="stat"><b>'+c.plan+'</b><span>Cần sắp xếp</span></div>'+
@@ -454,7 +467,7 @@ textarea{resize:vertical;min-height:64px}
     }).sort(function(a,b){
       if(order[a.status]!==order[b.status])return order[a.status]-order[b.status];
       if(!!a.hot!==!!b.hot)return a.hot?-1:1;
-      if(a.due&&b.due)return a.due<b.due?-1:1;
+      if(a.due&&b.due){var ka=a.due+" "+(a.dueTime||"99:99"),kb=b.due+" "+(b.dueTime||"99:99");if(ka!==kb)return ka<kb?-1:1;return b.created-a.created}
       if(a.due)return -1;if(b.due)return 1;
       return b.created-a.created;
     });
@@ -465,8 +478,8 @@ textarea{resize:vertical;min-height:64px}
     $("list").innerHTML=arr.map(function(t){
       var due="";
       if(t.due){
-        var cls=t.status!=="done"&&t.due<TODAY?" late":(t.status!=="done"&&t.due===TODAY?" today":"");
-        var txt=cls===" late"?"Quá hạn "+fmt(t.due):(cls===" today"?"Hôm nay":"Hạn "+fmt(t.due));
+        var cls=isLate(t)?" late":(t.status!=="done"&&t.due===TODAY?" today":""),tm=t.dueTime?" "+t.dueTime:"";
+        var txt=cls===" late"?"Quá hạn "+fmt(t.due)+tm:(cls===" today"?"Hôm nay"+tm:"Hạn "+fmt(t.due)+tm);
         due='<span class="badge'+cls+'">'+txt+'</span>';
       }
       return '<div class="task '+t.status+'" data-id="'+t.id+'">'+
@@ -479,7 +492,7 @@ textarea{resize:vertical;min-height:64px}
           Object.keys(LABEL).map(function(k){return '<option value="'+k+'"'+(k===t.status?" selected":"")+'>'+LABEL[k]+'</option>'}).join("")+
         '</select>'+
         '<button class="link" data-act="edit">Sửa</button>'+
-        '<button class="link" data-act="del">Xóa</button></div></div></div>';
+        '<button class="link" data-act="del">Xóa</button></div>'+stamp(t)+'</div></div>';
     }).join("");
   }
 
@@ -487,7 +500,7 @@ textarea{resize:vertical;min-height:64px}
     var r=range();
     var arr=S.logs.filter(function(l){return inRange(r,l.date)}).sort(function(a,b){return a.date===b.date?b.created-a.created:(a.date<b.date?1:-1)});
     $("logList").innerHTML=arr.length?arr.map(function(l){
-      return '<div class="log" data-id="'+l.id+'"><div class="top"><time>'+fmt(l.date)+'</time>'+(DR['log:'+l.id]?' <span class="badge today">Có bản nháp</span>':'')+'<span><button class="link" data-act="editlog">Sửa</button><button class="link" data-act="dellog">Xóa</button></span></div>'+(l.title?'<div class="t" style="margin-top:2px">'+esc(l.title)+'</div>':'')+(l.text?(l.rich?'<div class="rt">'+clean(l.text)+'</div>':'<p>'+esc(l.text)+'</p>'):'')+(l.imgs&&l.imgs.length?'<div class="thumbs">'+thumbs(l.imgs)+'</div>':'')+'</div>';
+      return '<div class="log" data-id="'+l.id+'"><div class="top"><time>'+fmt(l.date)+'</time>'+(DR['log:'+l.id]?' <span class="badge today">Có bản nháp</span>':'')+'<span><button class="link" data-act="editlog">Sửa</button><button class="link" data-act="dellog">Xóa</button></span></div>'+(l.title?'<div class="t" style="margin-top:2px">'+esc(l.title)+'</div>':'')+(l.text?(l.rich?'<div class="rt">'+clean(l.text)+'</div>':'<p>'+esc(l.text)+'</p>'):'')+(l.imgs&&l.imgs.length?'<div class="thumbs">'+thumbs(l.imgs)+'</div>':'')+stamp(l)+'</div>';
     }).join(""):'<div class="empty">Không có nhật ký nào trong khoảng này.</div>';
   }
 
@@ -495,7 +508,7 @@ textarea{resize:vertical;min-height:64px}
 
   function resetForm(){
     dropDraft("newtask");
-    S.edit=null;S.timgs=[];$("tTitle").value="";$("tNote").value="";$("tStatus").value="todo";$("tDue").value="";$("tHot").checked=false;$("tFile").value="";
+    S.edit=null;S.timgs=[];$("tTitle").value="";$("tNote").value="";$("tStatus").value="todo";$("tDue").value="";$("tTime").value="";$("tHot").checked=false;$("tFile").value="";
     $("tThumbs").innerHTML="";$("tSave").textContent="Thêm việc";$("tCancel").hidden=true;
   }
 
@@ -549,7 +562,7 @@ textarea{resize:vertical;min-height:64px}
       var text=q("gText").value.trim(),title=q("gTitle").value.trim();
       if(!text&&!title&&!imgs.length){q("gTitle").focus();return}
       var cur=S.logs.find(function(x){return x.id===id});
-      if(cur){Object.assign(cur,{title:title,text:text,rich:true,date:q("gDate").value||cur.date,imgs:imgs.slice()});save()}
+      if(cur){Object.assign(cur,{updated:Date.now(),title:title,text:text,rich:true,date:q("gDate").value||cur.date,imgs:imgs.slice()});save()}
       dropDraft(GK);close();
     };
     q("gText").focus();var rg=document.createRange();rg.selectNodeContents(q("gText"));rg.collapse(false);var sl=getSelection();sl.removeAllRanges();sl.addRange(rg);
@@ -565,18 +578,18 @@ textarea{resize:vertical;min-height:64px}
       '<input id="eTitle" maxlength="200" aria-label="Tên việc">'+
       '<textarea id="eNote" style="min-height:120px" aria-label="Ghi chú"></textarea>'+
       '<div class="row"><select id="eStatus" aria-label="Trạng thái">'+Object.keys(LABEL).map(function(k){return '<option value="'+k+'">'+LABEL[k]+'</option>'}).join("")+'</select>'+
-      '<input id="eDue" type="date" aria-label="Hạn hoàn thành"></div>'+
+      '</div><div class="row"><label class="file">Hạn / ngày thực hiện<input id="eDue" type="date"></label><label class="file">Giờ thực hiện (không bắt buộc)<input id="eTime" type="time"></label></div>'+
       '<label class="file"><input type="checkbox" id="eHot" style="width:auto"> Ưu tiên cao</label>'+
       '<div><label class="file">Thêm ảnh (tối đa 5): <input type="file" id="eFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="eThumbs"></div></div>'+
       '<div class="acts"><button class="btn ghost" id="eCancel">Hủy</button><button class="btn" id="eSave">Lưu thay đổi</button></div></div>';
     document.body.appendChild(o);
     document.body.style.overflow="hidden";
     var q=function(x){return o.querySelector("#"+x)};
-    q("eTitle").value=t.title;q("eNote").value=t.note||"";q("eStatus").value=t.status;q("eDue").value=t.due||"";q("eHot").checked=!!t.hot;
+    q("eTitle").value=t.title;q("eNote").value=t.note||"";q("eStatus").value=t.status;q("eDue").value=t.due||"";q("eTime").value=t.dueTime||"";q("eHot").checked=!!t.hot;
     q("eThumbs").innerHTML=thumbs(imgs,true);
     var EK="task:"+id;
-    function ev(){return{title:q("eTitle").value,note:q("eNote").value,status:q("eStatus").value,due:q("eDue").value,hot:q("eHot").checked}}
-    function es(v){q("eTitle").value=v.title;q("eNote").value=v.note;q("eStatus").value=v.status;q("eDue").value=v.due;q("eHot").checked=!!v.hot}
+    function ev(){return{title:q("eTitle").value,note:q("eNote").value,status:q("eStatus").value,due:q("eDue").value,time:q("eTime").value,hot:q("eHot").checked}}
+    function es(v){q("eTitle").value=v.title;q("eNote").value=v.note;q("eStatus").value=v.status;q("eDue").value=v.due;q("eTime").value=v.time||"";q("eHot").checked=!!v.hot}
     var eorig=JSON.stringify(ev());
     if(DR[EK]){es(DR[EK]);q("eDraft").hidden=false}
     function etrack(){var v=ev();if(JSON.stringify(v)===eorig)dropDraft(EK);else putDraft(EK,v)}
@@ -597,7 +610,7 @@ textarea{resize:vertical;min-height:64px}
       var title=q("eTitle").value.trim();
       if(!title){q("eTitle").focus();return}
       var cur=S.tasks.find(function(x){return x.id===id});
-      if(cur){Object.assign(cur,{title:title,note:q("eNote").value.trim(),status:q("eStatus").value,due:q("eDue").value,hot:q("eHot").checked,imgs:imgs.slice()});save()}
+      if(cur){Object.assign(cur,{title:title,note:q("eNote").value.trim(),status:q("eStatus").value,due:q("eDue").value,dueTime:q("eTime").value,hot:q("eHot").checked,imgs:imgs.slice(),updated:Date.now()});save()}
       dropDraft(EK);close();renderAll();
     };
     q("eTitle").focus();
@@ -606,7 +619,7 @@ textarea{resize:vertical;min-height:64px}
   $("tSave").onclick=function(){
     var title=$("tTitle").value.trim();
     if(!title){$("tTitle").focus();return}
-    var data={title:title,note:$("tNote").value.trim(),status:$("tStatus").value,due:$("tDue").value,hot:$("tHot").checked,imgs:S.timgs.slice()};
+    var data={title:title,note:$("tNote").value.trim(),status:$("tStatus").value,due:$("tDue").value,dueTime:$("tTime").value,hot:$("tHot").checked,imgs:S.timgs.slice()};
     if(S.edit){var t=S.tasks.find(function(x){return x.id===S.edit});if(t)Object.assign(t,data)}
     else S.tasks.push(Object.assign({id:uid(),created:Date.now()},data));
     save();resetForm();renderAll();
@@ -691,8 +704,8 @@ textarea{resize:vertical;min-height:64px}
   $("today").textContent=days[new Date().getDay()]+", "+fmt(TODAY);
   $("lDate").value=TODAY;
   function ntDraft(){
-    var v={title:$("tTitle").value,note:$("tNote").value,status:$("tStatus").value,due:$("tDue").value,hot:$("tHot").checked};
-    if(!v.title&&!v.note&&!v.due&&!v.hot&&v.status==="todo")dropDraft("newtask");else putDraft("newtask",v);
+    var v={title:$("tTitle").value,note:$("tNote").value,status:$("tStatus").value,due:$("tDue").value,time:$("tTime").value,hot:$("tHot").checked};
+    if(!v.title&&!v.note&&!v.due&&!v.time&&!v.hot&&v.status==="todo")dropDraft("newtask");else putDraft("newtask",v);
   }
   $("taskForm").addEventListener("input",ntDraft);$("taskForm").addEventListener("change",ntDraft);
   function nlDraft(){
