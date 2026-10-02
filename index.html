@@ -274,10 +274,42 @@ textarea{resize:vertical;min-height:64px}
     document.execCommand(b.dataset.cmd);ed.dispatchEvent(new Event("input",{bubbles:true}));syncTb();
   });
   document.addEventListener("selectionchange",syncTb);
+  function htmlToText(h){
+    var d=new DOMParser().parseFromString(h,"text/html"),out="";
+    var BLK={P:1,DIV:1,LI:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,TR:1,BLOCKQUOTE:1,PRE:1,UL:1,OL:1,SECTION:1,ARTICLE:1,TABLE:1,HR:1,FIGURE:1,HEADER:1,FOOTER:1};
+    function nl(){if(out&&out.slice(-1)!=="\n")out+="\n"}
+    (function w(n){
+      Array.prototype.slice.call(n.childNodes).forEach(function(c){
+        if(c.nodeType===3){out+=c.nodeValue.replace(/\s+/g," ");return}
+        if(c.nodeType!==1)return;
+        var tg=c.tagName;
+        if(tg==="SCRIPT"||tg==="STYLE"||tg==="HEAD")return;
+        if(tg==="BR"){out+="\n";return}
+        if(c.classList&&c.classList.contains("katex")){
+          var an=c.querySelector('annotation[encoding="application/x-tex"]');
+          if(an){var disp=c.parentNode&&c.parentNode.classList&&c.parentNode.classList.contains("katex-display");out+=(disp?"$$":"$")+an.textContent+(disp?"$$":"$");return}
+        }
+        var blk=!!BLK[tg];
+        if(blk)nl();
+        if(tg==="LI")out+="• ";
+        w(c);
+        if(blk){nl();if(tg==="P"||/^H\d$/.test(tg))out+="\n"}
+      });
+    })(d.body);
+    return out.replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").replace(/^\s+|\s+$/g,"");
+  }
   document.addEventListener("paste",function(e){
     if(!(e.target.closest&&e.target.closest(".rte")))return;
     e.preventDefault();
-    var t=((e.clipboardData||window.clipboardData).getData("text/plain")||"").replace(/\r\n?/g,"\n").replace(/\u00a0/g," ").replace(/\t/g,"    ");
+    var cb=e.clipboardData||window.clipboardData;
+    var t=(cb.getData("text/plain")||"").replace(/\r\n?/g,"\n");
+    var h=cb.getData("text/html")||"";
+    if(h){
+      var ht=htmlToText(h);
+      /* nếu bản chữ thường bị mất xuống dòng nhưng bản HTML còn cấu trúc đoạn thì dùng bản HTML */
+      if(ht.split("\n").length>t.split("\n").length)t=ht;
+    }
+    t=t.replace(/\u00a0/g," ").replace(/\t/g,"    ");
     document.execCommand("insertHTML",false,t.split("\n").map(esc).join("<br>"));
   });
   document.addEventListener("input",function(e){
