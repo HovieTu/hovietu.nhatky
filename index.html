@@ -170,7 +170,7 @@ textarea{resize:vertical;min-height:64px}
         <label class="file">Giờ thực hiện (không bắt buộc)<input id="tTime" type="time"></label>
       </div>
       <label class="file"><input type="checkbox" id="tHot" style="width:auto"> Ưu tiên cao</label>
-      <div><label class="file">Thêm ảnh (tối đa 5): <input type="file" id="tFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="tThumbs"></div></div>
+      <div><label class="file">Thêm ảnh (tối đa 5, có thể dán bằng Ctrl+V): <input type="file" id="tFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="tThumbs"></div></div>
       <div class="row">
         <button class="btn" id="tSave">Thêm việc</button>
         <button class="btn ghost" id="tCancel" hidden>Hủy sửa</button>
@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:64px}
         <div class="rte" id="lText" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Nội dung nhật ký" data-ph="Hôm nay bạn đã làm gì, gặp vấn đề gì, cần nhớ gì?"></div>
         <div class="tb"><button type="button" data-cmd="bold" title="In đậm (Ctrl+B)" aria-label="In đậm"><b>B</b></button><button type="button" data-cmd="italic" title="In nghiêng (Ctrl+I)" aria-label="In nghiêng"><i>I</i></button><button type="button" data-cmd="underline" title="Gạch chân (Ctrl+U)" aria-label="Gạch chân"><u>U</u></button></div>
       </div>
-      <div><label class="file">Thêm ảnh: <input type="file" id="lFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="lThumbs"></div></div>
+      <div><label class="file">Thêm ảnh (tối đa 5, có thể dán bằng Ctrl+V): <input type="file" id="lFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="lThumbs"></div></div>
       <div class="row"><input id="lDate" type="date" aria-label="Ngày"><button class="btn" id="lSave">Lưu nhật ký</button></div>
     </div>
     <div id="logList"></div>
@@ -570,6 +570,16 @@ textarea{resize:vertical;min-height:64px}
       r.readAsDataURL(f);
     });
   }
+  function pasteImgs(e,arr,render){
+    var cb=e.clipboardData;if(!cb||!cb.items)return;
+    var files=[];
+    for(var i=0;i<cb.items.length;i++){var it=cb.items[i];if(it.kind==="file"&&/^image\//.test(it.type)){var f=it.getAsFile();if(f)files.push(f)}}
+    if(!files.length||(cb.getData("text/plain")||"").trim())return;
+    e.preventDefault();e.stopPropagation();
+    var room=Math.max(0,5-arr.length);
+    if(!room){dialog('<div>Mỗi mục chỉ đính kèm tối đa 5 ảnh.</div>',[["Đóng"]]);return}
+    readImgs(files.slice(0,room),arr,function(){fit(arr);render()});
+  }
   function fit(arr){
     var t=0,out=0;
     for(var i=0;i<arr.length;i++){t+=arr[i].length;if(t>MAXTOTAL){out=arr.length-i;arr.length=i;break}}
@@ -668,6 +678,8 @@ textarea{resize:vertical;min-height:64px}
     $("tThumbs").innerHTML="";$("tSave").textContent="Thêm việc";$("tCancel").hidden=true;
   }
 
+  $("taskForm").addEventListener("paste",function(e){pasteImgs(e,S.timgs,function(){$("tThumbs").innerHTML=thumbs(S.timgs,true)})});
+  $("v-logs").addEventListener("paste",function(e){pasteImgs(e,S.limgs,function(){$("lThumbs").innerHTML=thumbs(S.limgs,true)})});
   $("tFile").onchange=function(){readImgs(Array.prototype.slice.call(this.files,0,Math.max(0,5-S.timgs.length)),S.timgs,function(){fit(S.timgs);$("tThumbs").innerHTML=thumbs(S.timgs,true);$("tFile").value=""})};
   $("lFile").onchange=function(){readImgs(Array.prototype.slice.call(this.files,0,Math.max(0,5-S.limgs.length)),S.limgs,function(){fit(S.limgs);$("lThumbs").innerHTML=thumbs(S.limgs,true);$("lFile").value=""})};
   $("tThumbs").onclick=function(e){
@@ -755,7 +767,7 @@ textarea{resize:vertical;min-height:64px}
       '<div class="file" id="gDraft" hidden style="color:var(--warn)">Đang hiển thị bản nháp chưa lưu. <button class="link" id="gDrop" type="button">Bỏ nháp</button></div>'+
       '<input id="gDate" type="date" aria-label="Ngày">'+
       '<div class="compose"><input id="gTitle" maxlength="150" placeholder="Tiêu đề" aria-label="Tiêu đề"><div class="rte" id="gText" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Nội dung" data-ph="Nội dung" style="min-height:220px"></div>'+TB+'</div>'+
-      '<div><label class="file">Thêm ảnh (tối đa 5): <input type="file" id="gFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="gThumbs"></div></div>'+
+      '<div><label class="file">Thêm ảnh (tối đa 5, có thể dán bằng Ctrl+V): <input type="file" id="gFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="gThumbs"></div></div>'+
       '<div class="acts"><button class="btn ghost" id="gCancel">Hủy</button><button class="btn" id="gSave">Lưu thay đổi</button></div></div>';
     document.body.appendChild(o);
     document.body.style.overflow="hidden";
@@ -776,6 +788,7 @@ textarea{resize:vertical;min-height:64px}
     q("gFile").onchange=function(){
       readImgs(Array.prototype.slice.call(this.files,0,Math.max(0,5-imgs.length)),imgs,function(){fit(imgs);q("gThumbs").innerHTML=thumbs(imgs,true);q("gFile").value=""});
     };
+    o.addEventListener("paste",function(e){pasteImgs(e,imgs,function(){q("gThumbs").innerHTML=thumbs(imgs,true)})});
     q("gThumbs").onclick=function(e){
       if(e.target.dataset.rm!==undefined){imgs.splice(+e.target.dataset.rm,1);q("gThumbs").innerHTML=thumbs(imgs,true)}
       else if(e.target.dataset.z)zoom(e.target.src);
@@ -803,7 +816,7 @@ textarea{resize:vertical;min-height:64px}
       '<div class="row"><select id="eStatus" aria-label="Trạng thái">'+Object.keys(LABEL).map(function(k){return '<option value="'+k+'">'+LABEL[k]+'</option>'}).join("")+'</select>'+
       '<select id="eGoal" aria-label="Mục tiêu liên quan"></select></div><div class="row"><label class="file">Hạn / ngày thực hiện<input id="eDue" type="date"></label><label class="file">Giờ thực hiện (không bắt buộc)<input id="eTime" type="time"></label></div>'+
       '<label class="file"><input type="checkbox" id="eHot" style="width:auto"> Ưu tiên cao</label>'+
-      '<div><label class="file">Thêm ảnh (tối đa 5): <input type="file" id="eFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="eThumbs"></div></div>'+
+      '<div><label class="file">Thêm ảnh (tối đa 5, có thể dán bằng Ctrl+V): <input type="file" id="eFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="eThumbs"></div></div>'+
       '<div class="acts"><button class="btn ghost" id="eCancel">Hủy</button><button class="btn" id="eSave">Lưu thay đổi</button></div></div>';
     document.body.appendChild(o);
     document.body.style.overflow="hidden";
@@ -824,6 +837,7 @@ textarea{resize:vertical;min-height:64px}
     q("eFile").onchange=function(){
       readImgs(Array.prototype.slice.call(this.files,0,Math.max(0,5-imgs.length)),imgs,function(){fit(imgs);q("eThumbs").innerHTML=thumbs(imgs,true);q("eFile").value=""});
     };
+    o.addEventListener("paste",function(e){pasteImgs(e,imgs,function(){q("eThumbs").innerHTML=thumbs(imgs,true)})});
     q("eThumbs").onclick=function(e){
       if(e.target.dataset.rm!==undefined){imgs.splice(+e.target.dataset.rm,1);q("eThumbs").innerHTML=thumbs(imgs,true)}
       else if(e.target.dataset.z)zoom(e.target.src);
