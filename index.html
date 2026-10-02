@@ -129,7 +129,7 @@ textarea{resize:vertical;min-height:64px}
     <button class="chip" data-p="all" aria-pressed="true">Tất cả</button>
     <button class="chip" data-p="week" aria-pressed="false">Theo tuần</button>
     <button class="chip" data-p="month" aria-pressed="false">Theo tháng</button>
-    <span id="pnav" hidden style="display:none;flex:1;align-items:center;gap:6px;min-width:220px"><button class="chip" data-nav="-1" aria-label="Trước">‹</button><span class="lbl" id="plbl"></span><button class="chip" data-nav="1" aria-label="Sau">›</button></span>
+    <span id="pnav" style="display:none;flex:1;align-items:center;gap:6px;min-width:220px"><button class="chip" data-nav="-1" aria-label="Trước">‹</button><span class="lbl" id="plbl"></span><button class="chip" data-nav="1" aria-label="Sau">›</button></span>
   </div>
 
   <section id="v-tasks">
@@ -274,43 +274,76 @@ textarea{resize:vertical;min-height:64px}
     document.execCommand(b.dataset.cmd);ed.dispatchEvent(new Event("input",{bubbles:true}));syncTb();
   });
   document.addEventListener("selectionchange",syncTb);
-  function htmlToText(h){
-    var d=new DOMParser().parseFromString(h,"text/html"),out="";
+  /* Chuyển HTML từ clipboard sang tập định dạng của trang: đậm, nghiêng, gạch chân, xuống dòng, danh sách */
+  function htmlToRich(h){
+    var d=new DOMParser().parseFromString(h,"text/html"),out="",bul=false,li=0;
     var BLK={P:1,DIV:1,LI:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,TR:1,BLOCKQUOTE:1,PRE:1,UL:1,OL:1,SECTION:1,ARTICLE:1,TABLE:1,HR:1,FIGURE:1,HEADER:1,FOOTER:1};
-    function nl(){if(out&&out.slice(-1)!=="\n")out+="\n"}
-    (function w(n){
+    function atNL(){return out===""||/<br>(<\/[biu]>)*$/.test(out)}
+    function nl(){if(!bul&&!atNL())out+="<br>"}
+    function fw(v){return v==="bold"||v==="bolder"||+v>=600}
+    function w(n,st){
       Array.prototype.slice.call(n.childNodes).forEach(function(c){
-        if(c.nodeType===3){out+=c.nodeValue.replace(/\s+/g," ");return}
+        if(c.nodeType===3){
+          var t=c.nodeValue;
+          if(st.pre)t=esc(t).replace(/\r?\n/g,"<br>");
+          else{t=t.replace(/\s+/g," ");if(atNL()||bul)t=t.replace(/^ /,"");t=esc(t)}
+          if(t){out+=t;bul=false}
+          return;
+        }
         if(c.nodeType!==1)return;
-        var tg=c.tagName;
+        var tg=c.tagName,sy=c.style||{};
         if(tg==="SCRIPT"||tg==="STYLE"||tg==="HEAD")return;
-        if(tg==="BR"){out+="\n";return}
+        if(tg==="BR"){out+="<br>";bul=false;return}
         if(c.classList&&c.classList.contains("katex")){
           var an=c.querySelector('annotation[encoding="application/x-tex"]');
-          if(an){var disp=c.parentNode&&c.parentNode.classList&&c.parentNode.classList.contains("katex-display");out+=(disp?"$$":"$")+an.textContent+(disp?"$$":"$");return}
+          if(an){
+            var disp=!!(c.parentNode&&c.parentNode.classList&&c.parentNode.classList.contains("katex-display"));
+            if(disp)nl();
+            out+=esc((disp?"$$":"$")+an.textContent+(disp?"$$":"$"));bul=false;
+            if(disp)nl();
+            return;
+          }
         }
+        var s2={b:st.b,i:st.i,u:st.u,pre:st.pre};
+        if(tg==="B"||tg==="STRONG"||/^H[1-6]$|^TH$/.test(tg))s2.b=true;
+        if(sy.fontWeight)s2.b=fw(sy.fontWeight);
+        if(tg==="I"||tg==="EM")s2.i=true;
+        if(sy.fontStyle)s2.i=sy.fontStyle==="italic"||sy.fontStyle==="oblique";
+        if(tg==="U"||tg==="INS")s2.u=true;
+        var td=sy.textDecorationLine||sy.textDecoration||"";
+        if(tg!=="A"&&td)s2.u=td.indexOf("underline")>-1;
+        if(tg==="PRE"||/^pre/.test(sy.whiteSpace||""))s2.pre=true;
         var blk=!!BLK[tg];
         if(blk)nl();
-        if(tg==="LI")out+="• ";
-        w(c);
-        if(blk){nl();if(tg==="P"||/^H\d$/.test(tg))out+="\n"}
+        if((tg==="TD"||tg==="TH")&&c.previousElementSibling){out+=" | ";bul=false}
+        if(tg==="LI"){
+          var par=c.parentNode,ord=par&&par.tagName==="OL",idx=1,k=0,p;
+          if(ord){var sib=c;while((sib=sib.previousElementSibling))idx++;idx+=(+par.getAttribute("start")||1)-1}
+          for(p=par&&par.parentNode;p;p=p.parentNode)if(p.tagName==="UL"||p.tagName==="OL")k++;
+          out+=new Array(k+1).join("  ")+(ord?idx+". ":"• ");bul=true;li++;
+        }
+        var op="",cl="";
+        if(s2.b&&!st.b){op+="<b>";cl="</b>"+cl}
+        if(s2.i&&!st.i){op+="<i>";cl="</i>"+cl}
+        if(s2.u&&!st.u){op+="<u>";cl="</u>"+cl}
+        out+=op;w(c,s2);out+=cl;
+        if(tg==="LI")li--;
+        if(blk){bul=false;nl();if((tg==="P"||/^H[1-6]$/.test(tg))&&!li)out+="<br>"}
       });
-    })(d.body);
-    return out.replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").replace(/^\s+|\s+$/g,"");
+    }
+    w(d.body,{b:false,i:false,u:false,pre:false});
+    return out.replace(/<(b|i|u)><\/\1>/g,"").replace(/ +(<br>)/g,"$1").replace(/(<br>){3,}/g,"<br><br>").replace(/^(<br>)+/,"").replace(/(<br>)+$/,"");
   }
   document.addEventListener("paste",function(e){
     if(!(e.target.closest&&e.target.closest(".rte")))return;
     e.preventDefault();
-    var cb=e.clipboardData||window.clipboardData;
-    var t=(cb.getData("text/plain")||"").replace(/\r\n?/g,"\n");
-    var h=cb.getData("text/html")||"";
-    if(h){
-      var ht=htmlToText(h);
-      /* nếu bản chữ thường bị mất xuống dòng nhưng bản HTML còn cấu trúc đoạn thì dùng bản HTML */
-      if(ht.split("\n").length>t.split("\n").length)t=ht;
+    var cb=e.clipboardData||window.clipboardData,h=cb.getData("text/html")||"",r="";
+    if(h){try{r=htmlToRich(h)}catch(x){r=""}}
+    if(!r.replace(/<[^>]+>/g,"").trim()){
+      var t=(cb.getData("text/plain")||"").replace(/\r\n?/g,"\n").replace(/\u00a0/g," ").replace(/\t/g,"    ");
+      r=t.split("\n").map(esc).join("<br>");
     }
-    t=t.replace(/\u00a0/g," ").replace(/\t/g,"    ");
-    document.execCommand("insertHTML",false,t.split("\n").map(esc).join("<br>"));
+    document.execCommand("insertHTML",false,r);
   });
   document.addEventListener("input",function(e){
     var el=e.target;
@@ -419,6 +452,8 @@ textarea{resize:vertical;min-height:64px}
       var keep=cb&&cb(+i,o);if(!keep)o.remove();
     };
     document.body.appendChild(o);
+    var esc2=function(e){if(e.key==="Escape"&&document.body.contains(o)&&o.parentNode.lastElementChild===o){o.remove()}if(!document.body.contains(o))document.removeEventListener("keydown",esc2)};
+    document.addEventListener("keydown",esc2);
     var f=o.querySelector("button[data-i]:last-child");if(f)f.focus();
     return o;
   }
@@ -456,7 +491,7 @@ textarea{resize:vertical;min-height:64px}
     if(out)dialog('<div>Mỗi mục chỉ lưu được một lượng ảnh nhất định. Đã bỏ '+out+' ảnh vượt mức, hãy bớt ảnh hoặc chọn ảnh nhỏ hơn.</div>',[["Đóng"]]);
   }
   function thumbs(arr,remove){
-    return arr.map(function(u,i){return '<div class="im"><img src="'+srcOf(u)+'" alt="Ảnh đính kèm" data-z="1">'+(remove?'<button class="rm" data-rm="'+i+'" aria-label="Bỏ ảnh">×</button>':'')+'</div>'}).join("");
+    return arr.map(function(u,i){return '<div class="im"><img src="'+esc(srcOf(u))+'" alt="Ảnh đính kèm" data-z="1">'+(remove?'<button class="rm" data-rm="'+i+'" aria-label="Bỏ ảnh">×</button>':'')+'</div>'}).join("");
   }
 
   /* Lọc theo tuần / tháng */
@@ -484,6 +519,7 @@ textarea{resize:vertical;min-height:64px}
   }
 
   function renderStats(){
+    TODAY=iso(new Date());
     var c={todo:0,plan:0,done:0},late=0;
     S.tasks.forEach(function(t){c[t.status]++;if(isLate(t))late++});
     $("stats").innerHTML=
@@ -494,6 +530,7 @@ textarea{resize:vertical;min-height:64px}
   }
 
   function renderTasks(){
+    TODAY=iso(new Date());
     var q=fold(S.q.trim()),r=range();
     var order={todo:0,plan:1,done:2};
     var arr=S.tasks.filter(function(t){
@@ -516,7 +553,7 @@ textarea{resize:vertical;min-height:64px}
         var txt=cls===" late"?"Quá hạn "+fmt(t.due)+tm:(cls===" today"?"Hôm nay"+tm:"Hạn "+fmt(t.due)+tm);
         due='<span class="badge'+cls+'">'+txt+'</span>';
       }
-      return '<div class="task '+t.status+'" data-id="'+t.id+'">'+
+      return '<div class="task '+esc(t.status)+'" data-id="'+esc(t.id)+'">'+
         '<input type="checkbox" class="check" '+(t.status==="done"?"checked":"")+' aria-label="Đánh dấu hoàn thành">'+
         '<div class="body"><div class="t">'+esc(t.title)+'</div>'+
         (t.note?'<div class="n">'+esc(t.note)+'</div>':'')+
@@ -534,7 +571,7 @@ textarea{resize:vertical;min-height:64px}
     var r=range();
     var arr=S.logs.filter(function(l){return inRange(r,l.date)}).sort(function(a,b){return a.date===b.date?b.created-a.created:(a.date<b.date?1:-1)});
     $("logList").innerHTML=arr.length?arr.map(function(l){
-      return '<div class="log" data-id="'+l.id+'"><div class="top"><time>'+fmt(l.date)+'</time>'+(DR['log:'+l.id]?' <span class="badge today">Có bản nháp</span>':'')+'<span><button class="link" data-act="editlog">Sửa</button><button class="link" data-act="dellog">Xóa</button></span></div>'+(l.title?'<div class="t" style="margin-top:2px">'+esc(l.title)+'</div>':'')+(l.text?(l.rich?'<div class="rt">'+clean(l.text)+'</div>':'<p>'+esc(l.text)+'</p>'):'')+(l.imgs&&l.imgs.length?'<div class="thumbs">'+thumbs(l.imgs)+'</div>':'')+stamp(l)+'</div>';
+      return '<div class="log" data-id="'+esc(l.id)+'"><div class="top"><time>'+fmt(l.date)+'</time>'+(DR['log:'+l.id]?' <span class="badge today">Có bản nháp</span>':'')+'<span><button class="link" data-act="editlog">Sửa</button><button class="link" data-act="dellog">Xóa</button></span></div>'+(l.title?'<div class="t" style="margin-top:2px">'+esc(l.title)+'</div>':'')+(l.text?(l.rich?'<div class="rt">'+clean(l.text)+'</div>':'<p>'+esc(l.text)+'</p>'):'')+(l.imgs&&l.imgs.length?'<div class="thumbs">'+thumbs(l.imgs)+'</div>':'')+stamp(l)+'</div>';
     }).join(""):'<div class="empty">Không có nhật ký nào trong khoảng này.</div>';
   }
 
@@ -752,6 +789,7 @@ textarea{resize:vertical;min-height:64px}
   try{document.execCommand("defaultParagraphSeparator",false,"div")}catch(e){}
   applyNewDrafts();
   load();renderAll();connect();
+  document.addEventListener("visibilitychange",function(){if(!document.hidden){$("today").textContent=days[new Date().getDay()]+", "+fmt(iso(new Date()));renderAll()}});
 })();
 </script>
 </body>
