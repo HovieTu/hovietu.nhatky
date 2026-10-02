@@ -18,7 +18,7 @@
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141b1d;--card:#1d272a;--ink:#e6eeee;--mute:#8fa2a6;--line:#2c393c;--acc:#4fc0ac;--acc-t:#1c3a36;--warn:#e0aa4a;--warn-t:#3a2f17;--bad:#e5806f;--bad-t:#3d1f1a}}
 :root[data-theme="dark"]{--bg:#141b1d;--card:#1d272a;--ink:#e6eeee;--mute:#8fa2a6;--line:#2c393c;--acc:#4fc0ac;--acc-t:#1c3a36;--warn:#e0aa4a;--warn-t:#3a2f17;--bad:#e5806f;--bad-t:#3d1f1a}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html{overflow-y:scroll;scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 "Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:720px;margin:0 auto;padding:20px 16px 60px}
@@ -43,7 +43,7 @@ textarea{resize:vertical;min-height:64px}
 .btn.ghost,:root[data-theme="dark"] .btn.ghost,:root[data-theme="light"] .btn.ghost{background:none;color:var(--ink);border-color:var(--line)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.ghost{background:none;color:var(--ink)}}
 .btn.danger,:root[data-theme="dark"] .btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
-.period{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.period{min-height:34px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .period .lbl{flex:1;text-align:center;font-weight:500;min-width:140px}
 .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .thumbs .im{position:relative}
@@ -143,6 +143,13 @@ textarea{resize:vertical;min-height:64px}
     <button class="chip" data-p="week" aria-pressed="false">Theo tuần</button>
     <button class="chip" data-p="month" aria-pressed="false">Theo tháng</button>
     <span id="pnav" style="display:none;flex:1;align-items:center;gap:6px;min-width:220px"><button class="chip" data-nav="-1" aria-label="Trước">‹</button><span class="lbl" id="plbl"></span><button class="chip" data-nav="1" aria-label="Sau">›</button></span>
+  </div>
+
+  <div class="period" id="gfilter" hidden>
+    <button class="chip" data-gf="all" aria-pressed="true">Tất cả</button>
+    <button class="chip" data-gf="active" aria-pressed="false">Đang theo đuổi</button>
+    <button class="chip" data-gf="paused" aria-pressed="false">Tạm dừng</button>
+    <button class="chip" data-gf="done" aria-pressed="false">Đã đạt</button>
   </div>
 
   <section id="v-tasks">
@@ -248,7 +255,7 @@ textarea{resize:vertical;min-height:64px}
     }
   }
   var KEY="nhatky-cv-v1",MAXIMG=150000,MAXTOTAL=700000;
-  var S={tasks:[],logs:[],goals:[],f:"all",q:"",edit:null,mode:"all",off:0,timgs:[],limgs:[]};
+  var S={tasks:[],logs:[],goals:[],gf:"all",f:"all",q:"",edit:null,mode:"all",off:0,timgs:[],limgs:[]};
   var LABEL={todo:"Chưa làm",plan:"Cần sắp xếp",done:"Đã hoàn thành"};
   var $=function(id){return document.getElementById(id)};
 
@@ -408,7 +415,7 @@ textarea{resize:vertical;min-height:64px}
   function renderGoals(){
     var ord={active:0,paused:1,done:2},html="";
     Object.keys(HZ).forEach(function(h){
-      var arr=S.goals.filter(function(g){return g.horizon===h}).sort(function(a,b){
+      var arr=S.goals.filter(function(g){return g.horizon===h&&(S.gf==="all"||g.status===S.gf)}).sort(function(a,b){
         if(ord[a.status]!==ord[b.status])return ord[a.status]-ord[b.status];
         if(a.due&&b.due&&a.due!==b.due)return a.due<b.due?-1:1;
         if(!!a.due!==!!b.due)return a.due?-1:1;
@@ -703,6 +710,12 @@ textarea{resize:vertical;min-height:64px}
     };
     q("mTitle").focus();
   }
+  $("gfilter").onclick=function(e){
+    var b=e.target.closest("button");if(!b)return;
+    S.gf=b.dataset.gf;
+    document.querySelectorAll("[data-gf]").forEach(function(x){x.setAttribute("aria-pressed",x===b)});
+    renderGoals();
+  };
   $("gAdd").onclick=function(){openGoal(null)};
   $("goalList").onclick=function(e){
     var card=e.target.closest(".goal");if(!card)return;
@@ -868,6 +881,7 @@ textarea{resize:vertical;min-height:64px}
       $("v-logs").hidden=b.dataset.view!=="logs";
       $("v-goals").hidden=b.dataset.view!=="goals";
       $("period").hidden=b.dataset.view==="goals";
+      $("gfilter").hidden=b.dataset.view!=="goals";
     };
   });
 
