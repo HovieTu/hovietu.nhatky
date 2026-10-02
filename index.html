@@ -78,6 +78,7 @@ textarea{resize:vertical;min-height:64px}
 .ms-item.done span{text-decoration:line-through;color:var(--mute)}
 .rev{background:var(--warn-t);color:var(--warn);border-radius:8px;padding:6px 10px;font-size:13px;margin-top:10px}
 .ms{display:flex;gap:6px;margin-bottom:6px}.ms input{flex:1}
+.row>.hbtn{flex:none;min-width:0;height:42px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;line-height:1}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -127,7 +128,7 @@ textarea{resize:vertical;min-height:64px}
       <p class="sub" id="today"></p>
       <p class="sub" id="sync" style="margin-top:-14px;font-size:13px">Đang lưu trên thiết bị này</p>
     </div>
-    <div class="row" style="flex:none;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost" id="acct" hidden aria-label="Tài khoản" title="Tài khoản" style="min-width:0;width:42px;height:42px;padding:0;border-radius:50%;font-weight:700;background:var(--acc-t);border-color:var(--acc);color:var(--acc)"></button><button class="btn ghost" id="backup" style="min-width:0">Sao lưu</button><button class="btn ghost" id="theme" style="min-width:0" aria-label="Đổi giao diện sáng/tối">Sáng/Tối</button></div>
+    <div class="row" style="flex:none;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost hbtn" id="acct" hidden aria-label="Tài khoản" title="Tài khoản" style="min-width:0;width:42px;height:42px;padding:0;border-radius:50%;font-weight:700;background:var(--acc-t);border-color:var(--acc);color:var(--acc)"></button><button class="btn ghost hbtn" id="backup" style="min-width:0">Sao lưu</button><button class="btn ghost hbtn" id="theme" style="min-width:0" aria-label="Đổi giao diện sáng/tối">Sáng/Tối</button></div>
   </div>
 
   <div class="stats" id="stats"></div>
