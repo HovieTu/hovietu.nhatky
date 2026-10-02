@@ -79,6 +79,29 @@ textarea{resize:vertical;min-height:64px}
 .rev{background:var(--warn-t);color:var(--warn);border-radius:8px;padding:6px 10px;font-size:13px;margin-top:10px}
 .ms{display:flex;gap:6px;margin-bottom:6px}.ms input{flex:1}
 .row>.hbtn{flex:none;min-width:0;height:42px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;line-height:1}
+[data-clamp]{line-height:1.5}
+.fade{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 1.4em),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 1.4em),transparent)}
+.more{display:block;margin-top:4px;color:var(--acc);text-decoration:none;font-weight:500;font-size:13px}
+@media(max-width:600px){
+  body{font-size:14px;line-height:1.45}
+  main{padding:14px 12px 48px}
+  h1{font-size:20px}
+  .sub{font-size:13px;margin-bottom:14px}
+  .stat{padding:8px 10px;min-width:80px}.stat b{font-size:18px}.stat span{font-size:12px}
+  .tab{padding:9px 11px;font-size:14px}
+  .chip{font-size:12px;padding:4px 10px}
+  .btn{font-size:14px;padding:8px 14px}
+  .t{font-size:14.5px}.n{font-size:13px}.meta{font-size:12px}
+  .goal .t{font-size:15px!important}
+  .compose input{font-size:15px;padding:12px 12px 4px}
+  .compose .rte,.compose textarea{font-size:14px;padding:6px 12px 10px;min-height:110px}
+  .form,.task,.goal,.log{padding:11px}
+  .dlg{padding:15px}
+  .dlg input,.dlg textarea,.dlg select,.form input,.form textarea,.form select{font-size:14px;padding:8px 10px}
+}
+@supports (-webkit-touch-callout:none){
+  input,textarea,select,.rte,.compose input,.compose .rte,.compose textarea{font-size:16px!important}
+}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -405,7 +428,7 @@ textarea{resize:vertical;min-height:64px}
     }
     return '<div class="goal '+esc(g.status)+'" data-id="'+esc(g.id)+'">'+
       '<div class="top"><div class="t" style="font-size:16px">'+esc(g.title)+'</div><span><button class="link" data-act="edit">Sửa</button><button class="link" data-act="del">Xóa</button></span></div>'+
-      (g.why?'<div class="why">'+esc(g.why)+'</div>':'')+
+      (g.why?'<div class="why" data-clamp="g:'+esc(g.id)+'" data-lines="3">'+esc(g.why)+'</div>':'')+
       '<div class="bar" role="progressbar" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100"><i style="width:'+pct+'%"></i></div>'+
       '<div class="meta" style="margin-top:2px"><b>'+pct+'%</b>'+(m.length?'<span>'+m.filter(function(x){return x.done}).length+'/'+m.length+' cột mốc</span>':'<span>Chưa có cột mốc</span>')+due+'</div>'+
       m.map(function(x){return '<label class="ms-item'+(x.done?" done":"")+'"><input type="checkbox" class="mchk" data-m="'+esc(x.id)+'"'+(x.done?" checked":"")+'><span>'+esc(x.t)+'</span></label>'}).join("")+
@@ -428,6 +451,29 @@ textarea{resize:vertical;min-height:64px}
     });
     $("goalList").innerHTML=html;
   }
+  var EXP={};
+  function setupClamp(){
+    document.querySelectorAll("[data-clamp]").forEach(function(el){
+      if(el.dataset.ready||el.offsetParent===null)return;
+      el.dataset.ready="1";
+      var key=el.dataset.clamp,mh=(+el.dataset.lines||5)*1.5+"em";
+      el.style.maxHeight=mh;el.style.overflow="hidden";
+      if(el.scrollHeight<=el.clientHeight+2){el.style.maxHeight="";el.style.overflow="";return}
+      var b=document.createElement("button");b.type="button";b.className="link more";
+      el.parentNode.insertBefore(b,el.nextSibling);
+      function apply(open){el.style.maxHeight=open?"":mh;el.style.overflow=open?"":"hidden";el.classList.toggle("fade",!open);b.textContent=open?"Thu gọn":"Xem thêm"}
+      apply(!!EXP[key]);
+      b.onclick=function(){EXP[key]=!EXP[key];apply(EXP[key])};
+    });
+  }
+  function resetClamp(){
+    document.querySelectorAll(".more").forEach(function(b){b.remove()});
+    document.querySelectorAll("[data-clamp]").forEach(function(el){delete el.dataset.ready;el.style.maxHeight="";el.style.overflow="";el.classList.remove("fade")});
+    setupClamp();
+  }
+  var rzT=null;
+  window.addEventListener("resize",function(){clearTimeout(rzT);rzT=setTimeout(resetClamp,200)});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(resetClamp);
   function pad2(n){return String(n).padStart(2,"0")}
   function fmtTs(ms){var d=new Date(ms);return pad2(d.getHours())+":"+pad2(d.getMinutes())+" "+pad2(d.getDate())+"/"+pad2(d.getMonth()+1)+"/"+d.getFullYear()}
   function stamp(o){return o.created?'<div class="stamp">Tạo lúc '+fmtTs(o.created)+(o.updated?' · Sửa lúc '+fmtTs(o.updated):'')+'</div>':''}
@@ -658,7 +704,7 @@ textarea{resize:vertical;min-height:64px}
       return '<div class="task '+esc(t.status)+'" data-id="'+esc(t.id)+'">'+
         '<input type="checkbox" class="check" '+(t.status==="done"?"checked":"")+' aria-label="Đánh dấu hoàn thành">'+
         '<div class="body"><div class="t">'+esc(t.title)+'</div>'+
-        (t.note?'<div class="n">'+esc(t.note)+'</div>':'')+
+        (t.note?'<div class="n" data-clamp="t:'+esc(t.id)+'" data-lines="3">'+esc(t.note)+'</div>':'')+
         (t.imgs&&t.imgs.length?'<div class="thumbs">'+thumbs(t.imgs)+'</div>':'')+
         '<div class="meta">'+(DR['task:'+t.id]?'<span class="badge today">Có bản nháp</span>':'')+(t.hot?'<span class="badge hot">Ưu tiên cao</span>':'')+due+goalBadge(t)+
         '<select class="st" aria-label="Đổi trạng thái">'+
@@ -673,7 +719,7 @@ textarea{resize:vertical;min-height:64px}
     var r=range();
     var arr=S.logs.filter(function(l){return inRange(r,l.date)}).sort(function(a,b){return a.date===b.date?b.created-a.created:(a.date<b.date?1:-1)});
     $("logList").innerHTML=arr.length?arr.map(function(l){
-      return '<div class="log" data-id="'+esc(l.id)+'"><div class="top"><time>'+fmt(l.date)+'</time>'+(DR['log:'+l.id]?' <span class="badge today">Có bản nháp</span>':'')+'<span><button class="link" data-act="editlog">Sửa</button><button class="link" data-act="dellog">Xóa</button></span></div>'+(l.title?'<div class="t" style="margin-top:2px">'+esc(l.title)+'</div>':'')+(l.text?(l.rich?'<div class="rt">'+clean(l.text)+'</div>':'<p>'+esc(l.text)+'</p>'):'')+(l.imgs&&l.imgs.length?'<div class="thumbs">'+thumbs(l.imgs)+'</div>':'')+stamp(l)+'</div>';
+      return '<div class="log" data-id="'+esc(l.id)+'"><div class="top"><time>'+fmt(l.date)+'</time>'+(DR['log:'+l.id]?' <span class="badge today">Có bản nháp</span>':'')+'<span><button class="link" data-act="editlog">Sửa</button><button class="link" data-act="dellog">Xóa</button></span></div>'+(l.title?'<div class="t" style="margin-top:2px">'+esc(l.title)+'</div>':'')+(l.text?(l.rich?'<div class="rt" data-clamp="l:'+esc(l.id)+'" data-lines="5">'+clean(l.text)+'</div>':'<p data-clamp="l:'+esc(l.id)+'" data-lines="5">'+esc(l.text)+'</p>'):'')+(l.imgs&&l.imgs.length?'<div class="thumbs">'+thumbs(l.imgs)+'</div>':'')+stamp(l)+'</div>';
     }).join(""):'<div class="empty">Không có nhật ký nào trong khoảng này.</div>';
   }
 
@@ -912,6 +958,7 @@ textarea{resize:vertical;min-height:64px}
       $("v-goals").hidden=b.dataset.view!=="goals";
       $("period").hidden=b.dataset.view==="goals";
       $("gfilter").hidden=b.dataset.view!=="goals";
+      setupClamp();
     };
   });
 
@@ -961,6 +1008,10 @@ textarea{resize:vertical;min-height:64px}
   }
   ["lTitle","lText","lDate"].forEach(function(i){$(i).addEventListener("input",nlDraft)});
   if("serviceWorker" in navigator&&location.protocol.indexOf("http")===0)navigator.serviceWorker.register("sw.js").catch(function(){});
+  var _rt=renderTasks,_rl=renderLogs,_rg=renderGoals;
+  renderTasks=function(){_rt.apply(this,arguments);setupClamp()};
+  renderLogs=function(){_rl.apply(this,arguments);setupClamp()};
+  renderGoals=function(){_rg.apply(this,arguments);setupClamp()};
   makeRT($("lText"));
   try{document.execCommand("defaultParagraphSeparator",false,"div")}catch(e){}
   applyNewDrafts();
