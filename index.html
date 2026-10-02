@@ -118,6 +118,7 @@ textarea{resize:vertical;min-height:64px}
   <b style="font-size:18px">Đăng nhập để xem nhật ký</b>
   <input id="aMail" type="email" placeholder="Email" autocomplete="username">
   <input id="aPass" type="password" placeholder="Mật khẩu (tối thiểu 6 ký tự)" autocomplete="current-password">
+  <label class="file" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="aKeep" style="width:auto"> Giữ đăng nhập trên thiết bị này</label>
   <div class="msg" id="aMsg"></div>
   <div class="acts" style="flex-wrap:wrap"><button class="btn ghost" id="aReset">Quên mật khẩu</button><button class="btn ghost" id="aReg">Tạo tài khoản</button><button class="btn" id="aIn">Đăng nhập</button></div>
 </div></div>
@@ -513,15 +514,21 @@ textarea{resize:vertical;min-height:64px}
         var m=await Promise.all([import(v+"firebase-app.js"),import(v+"firebase-auth.js"),import(v+"firebase-firestore.js")]);
         F=Object.assign({},m[0],m[1],m[2]);
         var fa=F.initializeApp(CFG);AUTH=F.getAuth(fa);DBH=F.getFirestore(fa);cloud=true;
-        $("aIn").onclick=function(){F.signInWithEmailAndPassword(AUTH,$("aMail").value.trim(),$("aPass").value).catch(authErr)};
-        $("aReg").onclick=function(){F.createUserWithEmailAndPassword(AUTH,$("aMail").value.trim(),$("aPass").value).catch(authErr)};
+        function usePersist(){
+          var k=$("aKeep").checked;try{localStorage.setItem("nhatky-keep",k?"1":"0")}catch(e){}
+          return F.setPersistence(AUTH,k?F.browserLocalPersistence:F.browserSessionPersistence).catch(function(){});
+        }
+        $("aIn").onclick=function(){usePersist().then(function(){return F.signInWithEmailAndPassword(AUTH,$("aMail").value.trim(),$("aPass").value)}).catch(authErr)};
+        $("aReg").onclick=function(){usePersist().then(function(){return F.createUserWithEmailAndPassword(AUTH,$("aMail").value.trim(),$("aPass").value)}).catch(authErr)};
         $("aPass").onkeydown=function(e){if(e.key==="Enter")$("aIn").click()};
         $("aReset").onclick=function(){
           var mail=$("aMail").value.trim();if(!mail){$("aMsg").textContent="Nhập email trước.";return}
           F.sendPasswordResetEmail(AUTH,mail).then(function(){$("aMsg").style.color="var(--acc)";$("aMsg").textContent="Đã gửi email đặt lại mật khẩu."},authErr);
         };
         $("acct").onclick=openAcct;
-        try{await F.setPersistence(AUTH,F.browserSessionPersistence)}catch(e){}
+        var keep=true;try{keep=localStorage.getItem("nhatky-keep")!=="0"}catch(e){}
+        $("aKeep").checked=keep;
+        try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
         F.onAuthStateChanged(AUTH,onUser);
       }catch(e){app.hidden=false;setSync("Không kết nối được Firebase, đang lưu trên thiết bị này")}
     })();
