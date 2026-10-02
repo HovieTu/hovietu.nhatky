@@ -60,9 +60,9 @@ textarea{resize:vertical;min-height:64px}
 .tb button{border:1px solid transparent;background:none;color:var(--mute);border-radius:6px;width:30px;height:28px;cursor:pointer;font:inherit;font-size:15px;padding:0}
 .tb button:hover{background:var(--line)}
 .tb button.on{background:var(--acc-t);color:var(--acc)}
-.compose .rte{padding:6px 14px 12px;min-height:130px;outline:none;line-height:1.55;overflow-wrap:anywhere;color:var(--ink)}
+.compose .rte{white-space:pre-wrap;padding:6px 14px 12px;min-height:130px;outline:none;line-height:1.55;overflow-wrap:anywhere;color:var(--ink)}
 .rte:empty:before{content:attr(data-ph);color:var(--mute);pointer-events:none}
-.rt{margin:4px 0 0;overflow-wrap:anywhere}
+.rt{margin:4px 0 0;overflow-wrap:anywhere;white-space:pre-wrap}
 .rt div{min-height:1.5em}
 .stamp{margin-top:8px;font-size:12px;color:var(--mute)}
 .row label.file{display:grid;gap:4px}
@@ -159,7 +159,7 @@ textarea{resize:vertical;min-height:64px}
       <button class="chip" data-f="todo" aria-pressed="false">Chưa làm</button>
       <button class="chip" data-f="plan" aria-pressed="false">Cần sắp xếp</button>
       <button class="chip" data-f="done" aria-pressed="false">Đã xong</button>
-      <input id="q" type="search" placeholder="Tìm việc..." aria-label="Tìm việc">
+      <input id="q" type="search" placeholder="Tìm việc (không cần dấu)..." aria-label="Tìm việc">
     </div>
     <div id="list"></div>
   </section>
@@ -277,12 +277,14 @@ textarea{resize:vertical;min-height:64px}
   document.addEventListener("paste",function(e){
     if(!(e.target.closest&&e.target.closest(".rte")))return;
     e.preventDefault();
-    document.execCommand("insertText",false,(e.clipboardData||window.clipboardData).getData("text/plain"));
+    var t=((e.clipboardData||window.clipboardData).getData("text/plain")||"").replace(/\r\n?/g,"\n").replace(/\u00a0/g," ").replace(/\t/g,"    ");
+    document.execCommand("insertHTML",false,t.split("\n").map(esc).join("<br>"));
   });
   document.addEventListener("input",function(e){
     var el=e.target;
     if(el.classList&&el.classList.contains("rte")&&(el.innerHTML==="<br>"||el.innerHTML==="<div><br></div>"))el.innerHTML="";
   });
+  function fold(x){return String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"d").toLowerCase()}
   function pad2(n){return String(n).padStart(2,"0")}
   function fmtTs(ms){var d=new Date(ms);return pad2(d.getHours())+":"+pad2(d.getMinutes())+" "+pad2(d.getDate())+"/"+pad2(d.getMonth()+1)+"/"+d.getFullYear()}
   function stamp(o){return o.created?'<div class="stamp">Tạo lúc '+fmtTs(o.created)+(o.updated?' · Sửa lúc '+fmtTs(o.updated):'')+'</div>':''}
@@ -460,10 +462,10 @@ textarea{resize:vertical;min-height:64px}
   }
 
   function renderTasks(){
-    var q=S.q.trim().toLowerCase(),r=range();
+    var q=fold(S.q.trim()),r=range();
     var order={todo:0,plan:1,done:2};
     var arr=S.tasks.filter(function(t){
-      return (S.f==="all"||t.status===S.f)&&inRange(r,t.due||iso(new Date(t.created)))&&(!q||(t.title+" "+t.note).toLowerCase().indexOf(q)>-1)
+      return (S.f==="all"||t.status===S.f)&&inRange(r,t.due||iso(new Date(t.created)))&&(!q||fold(t.title+" "+(t.note||"")).indexOf(q)>-1)
     }).sort(function(a,b){
       if(order[a.status]!==order[b.status])return order[a.status]-order[b.status];
       if(!!a.hot!==!!b.hot)return a.hot?-1:1;
