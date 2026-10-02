@@ -102,6 +102,9 @@ textarea{resize:vertical;min-height:64px}
 @supports (-webkit-touch-callout:none){
   input,textarea,select,.rte,.compose input,.compose .rte,.compose textarea{font-size:16px!important}
 }
+.row.dt{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row.dt>*{min-width:0}
+input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-webkit-appearance:none;appearance:none;text-align:left}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -184,14 +187,14 @@ textarea{resize:vertical;min-height:64px}
       <div class="row">
         <select id="tStatus" aria-label="Trạng thái">
           <option value="todo">Chưa làm</option>
-          <option value="plan">Cần sắp xếp</option>
+          <option value="plan">Ưu tiên làm</option>
           <option value="done">Đã hoàn thành</option>
         </select>
         <select id="tGoal" aria-label="Mục tiêu liên quan"></select>
       </div>
-      <div class="row">
+      <div class="row dt">
         <label class="file">Hạn / ngày thực hiện<input id="tDue" type="date"></label>
-        <label class="file">Giờ thực hiện (không bắt buộc)<input id="tTime" type="time"></label>
+        <label class="file">Giờ (không bắt buộc)<input id="tTime" type="time"></label>
       </div>
       <label class="file"><input type="checkbox" id="tHot" style="width:auto"> Ưu tiên cao</label>
       <div><label class="file">Thêm ảnh (tối đa 5, có thể dán bằng Ctrl+V): <input type="file" id="tFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="tThumbs"></div></div>
@@ -203,7 +206,7 @@ textarea{resize:vertical;min-height:64px}
     <div class="filters">
       <button class="chip" data-f="all" aria-pressed="true">Tất cả</button>
       <button class="chip" data-f="todo" aria-pressed="false">Chưa làm</button>
-      <button class="chip" data-f="plan" aria-pressed="false">Cần sắp xếp</button>
+      <button class="chip" data-f="plan" aria-pressed="false">Ưu tiên làm</button>
       <button class="chip" data-f="done" aria-pressed="false">Đã xong</button>
       <input id="q" type="search" placeholder="Tìm việc (không cần dấu)..." aria-label="Tìm việc">
     </div>
@@ -281,7 +284,7 @@ textarea{resize:vertical;min-height:64px}
   }
   var KEY="nhatky-cv-v1",MAXIMG=150000,MAXTOTAL=700000;
   var S={tasks:[],logs:[],goals:[],gf:"all",f:"all",q:"",edit:null,mode:"all",off:0,timgs:[],limgs:[]};
-  var LABEL={todo:"Chưa làm",plan:"Cần sắp xếp",done:"Đã hoàn thành"};
+  var LABEL={todo:"Chưa làm",plan:"Ưu tiên làm",done:"Đã hoàn thành"};
   var $=function(id){return document.getElementById(id)};
 
   function load(){try{var d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){S.tasks=d.tasks||[];S.logs=d.logs||[];S.goals=d.goals||[]}}catch(e){}}
@@ -678,7 +681,7 @@ textarea{resize:vertical;min-height:64px}
     S.tasks.forEach(function(t){c[t.status]++;if(isLate(t))late++});
     $("stats").innerHTML=
       '<div class="stat"><b>'+c.todo+'</b><span>Chưa làm</span></div>'+
-      '<div class="stat"><b>'+c.plan+'</b><span>Cần sắp xếp</span></div>'+
+      '<div class="stat"><b>'+c.plan+'</b><span>Ưu tiên làm</span></div>'+
       '<div class="stat"><b>'+c.done+'</b><span>Đã hoàn thành</span></div>'+
       '<div class="stat"><b style="color:'+(late?'var(--bad)':'inherit')+'">'+late+'</b><span>Quá hạn</span></div>';
   }
@@ -873,7 +876,7 @@ textarea{resize:vertical;min-height:64px}
       '<input id="eTitle" maxlength="200" aria-label="Tên việc">'+
       '<textarea id="eNote" style="min-height:120px" aria-label="Ghi chú"></textarea>'+
       '<div class="row"><select id="eStatus" aria-label="Trạng thái">'+Object.keys(LABEL).map(function(k){return '<option value="'+k+'">'+LABEL[k]+'</option>'}).join("")+'</select>'+
-      '<select id="eGoal" aria-label="Mục tiêu liên quan"></select></div><div class="row"><label class="file">Hạn / ngày thực hiện<input id="eDue" type="date"></label><label class="file">Giờ thực hiện (không bắt buộc)<input id="eTime" type="time"></label></div>'+
+      '<select id="eGoal" aria-label="Mục tiêu liên quan"></select></div><div class="row dt"><label class="file">Hạn / ngày thực hiện<input id="eDue" type="date"></label><label class="file">Giờ (không bắt buộc)<input id="eTime" type="time"></label></div>'+
       '<label class="file"><input type="checkbox" id="eHot" style="width:auto"> Ưu tiên cao</label>'+
       '<div><label class="file">Thêm ảnh (tối đa 5, có thể dán bằng Ctrl+V): <input type="file" id="eFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="eThumbs"></div></div>'+
       '<div class="acts"><button class="btn ghost" id="eCancel">Hủy</button><button class="btn" id="eSave">Lưu thay đổi</button></div></div>';
