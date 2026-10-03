@@ -208,7 +208,7 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
       <button class="chip" data-f="todo" aria-pressed="false">Chưa làm</button>
       <button class="chip" data-f="plan" aria-pressed="false">Ưu tiên làm</button>
       <button class="chip" data-f="done" aria-pressed="false">Đã xong</button>
-      <input id="q" type="search" placeholder="Tìm việc (không cần dấu)..." aria-label="Tìm việc">
+      <input id="q" type="search" placeholder="Tìm việc..." aria-label="Tìm việc">
     </div>
     <div id="list"></div>
   </section>
@@ -231,6 +231,7 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
       <div><label class="file">Thêm ảnh (tối đa 5, có thể dán bằng Ctrl+V): <input type="file" id="lFile" accept="image/*" multiple style="border:0;padding:4px 0;background:none"></label><div class="thumbs" id="lThumbs"></div></div>
       <div class="row"><input id="lDate" type="date" aria-label="Ngày"><button class="btn" id="lSave">Lưu nhật ký</button></div>
     </div>
+    <div class="filters"><input id="lq" type="search" placeholder="Tìm nhật ký..." aria-label="Tìm nhật ký"></div>
     <div id="logList"></div>
   </section>
 </main>
@@ -283,7 +284,7 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
     }
   }
   var KEY="nhatky-cv-v1",MAXIMG=150000,MAXTOTAL=700000;
-  var S={tasks:[],logs:[],goals:[],gf:"all",f:"all",q:"",edit:null,mode:"all",off:0,timgs:[],limgs:[]};
+  var S={tasks:[],logs:[],goals:[],gf:"all",lq:"",f:"all",q:"",edit:null,mode:"all",off:0,timgs:[],limgs:[]};
   var LABEL={todo:"Chưa làm",plan:"Ưu tiên làm",done:"Đã hoàn thành"};
   var $=function(id){return document.getElementById(id)};
 
@@ -406,6 +407,10 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
     var el=e.target;
     if(el.classList&&el.classList.contains("rte")&&(el.innerHTML==="<br>"||el.innerHTML==="<div><br></div>"))el.innerHTML="";
   });
+  function plainOf(l){
+    var h=l.rich?clean(l.text||"").replace(/<(br|\/div|\/p)>/g," "):esc(l.text||"");
+    var t=document.createElement("template");t.innerHTML=h;return t.content.textContent;
+  }
   function fold(x){return String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"d").toLowerCase()}
   var HZ={short:["Ngắn hạn","dưới 3 tháng"],mid:["Trung hạn","3–12 tháng"],long:["Dài hạn","trên 1 năm"]};
   var GST={active:"Đang theo đuổi",done:"Đã đạt",paused:"Tạm dừng"};
@@ -693,6 +698,9 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
     var arr=S.tasks.filter(function(t){
       return (S.f==="all"||t.status===S.f)&&inRange(r,t.due||iso(new Date(t.created)))&&(!q||fold(t.title+" "+(t.note||"")).indexOf(q)>-1)
     }).sort(function(a,b){
+      var la=isLate(a),lb=isLate(b);
+      if(la!==lb)return la?-1:1;
+      if(la&&lb){var ka=a.due+" "+(a.dueTime||"00:00"),kb=b.due+" "+(b.dueTime||"00:00");if(ka!==kb)return ka<kb?-1:1}
       if(order[a.status]!==order[b.status])return order[a.status]-order[b.status];
       if(!!a.hot!==!!b.hot)return a.hot?-1:1;
       if(a.due&&b.due){var ka=a.due+" "+(a.dueTime||"99:99"),kb=b.due+" "+(b.dueTime||"99:99");if(ka!==kb)return ka<kb?-1:1;return b.created-a.created}
@@ -726,10 +734,10 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
 
   function renderLogs(){
     var r=range();
-    var arr=S.logs.filter(function(l){return inRange(r,l.date)}).sort(function(a,b){return a.date===b.date?b.created-a.created:(a.date<b.date?1:-1)});
+    var lq=fold(S.lq.trim()),arr=S.logs.filter(function(l){return inRange(r,l.date)&&(!lq||fold((l.title||"")+" "+plainOf(l)+" "+fmt(l.date)).indexOf(lq)>-1)}).sort(function(a,b){return a.date===b.date?b.created-a.created:(a.date<b.date?1:-1)});
     $("logList").innerHTML=arr.length?arr.map(function(l){
       return '<div class="log" data-id="'+esc(l.id)+'"><div class="top"><time>'+fmt(l.date)+'</time>'+(DR['log:'+l.id]?' <span class="badge today">Có bản nháp</span>':'')+'<span><button class="link" data-act="editlog">Sửa</button><button class="link" data-act="dellog">Xóa</button></span></div>'+(l.title?'<div class="t" style="margin-top:2px">'+esc(l.title)+'</div>':'')+(l.text?(l.rich?'<div class="rt" data-clamp="l:'+esc(l.id)+'" data-lines="5">'+clean(l.text)+'</div>':'<p data-clamp="l:'+esc(l.id)+'" data-lines="5">'+esc(l.text)+'</p>'):'')+(l.imgs&&l.imgs.length?'<div class="thumbs">'+thumbs(l.imgs)+'</div>':'')+stamp(l)+'</div>';
-    }).join(""):'<div class="empty">Không có nhật ký nào trong khoảng này.</div>';
+    }).join(""):'<div class="empty">'+(S.lq.trim()?'Không tìm thấy nhật ký phù hợp.':'Không có nhật ký nào trong khoảng này.')+'</div>';
   }
 
   function renderAll(){renderPeriod();renderStats();renderTasks();renderLogs();renderGoals();refreshGoalSelect()}
@@ -957,6 +965,7 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
     else return;
     renderAll();
   };
+  $("lq").oninput=function(){S.lq=this.value;renderLogs()};
   $("q").oninput=function(){S.q=this.value;renderTasks()};
 
   document.querySelectorAll(".tab").forEach(function(b){
