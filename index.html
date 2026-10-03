@@ -105,6 +105,10 @@ textarea{resize:vertical;min-height:64px}
 .row.dt{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row.dt>*{min-width:0}
 input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-webkit-appearance:none;appearance:none;text-align:left}
+html{overscroll-behavior-y:contain}
+#ptr{position:fixed;left:0;right:0;top:0;height:0;display:flex;justify-content:center;pointer-events:none;z-index:40;padding-top:env(safe-area-inset-top,0px)}
+#ptr .pill{background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:99px;padding:6px 14px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.18);transform:translateY(-60px);opacity:0;white-space:nowrap}
+#ptr.snap .pill{transition:transform .2s,opacity .2s}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -1026,6 +1030,39 @@ input[type=date],input[type=time]{min-width:0;max-width:100%;min-height:40px;-we
   }
   ["lTitle","lText","lDate"].forEach(function(i){$(i).addEventListener("input",nlDraft)});
   if("serviceWorker" in navigator&&location.protocol.indexOf("http")===0)navigator.serviceWorker.register("sw.js").catch(function(){});
+  /* Vuốt xuống để làm mới (điện thoại) */
+  (function(){
+    if(!("ontouchstart" in window))return;
+    var box=document.createElement("div");box.id="ptr";box.setAttribute("aria-hidden","true");
+    box.innerHTML='<div class="pill"></div>';document.body.appendChild(box);
+    var pill=box.firstChild,sy=0,d=0,armed=false,pulling=false,TH=60;
+    function blocked(t){return document.querySelector(".ov:not([hidden])")||document.body.style.overflow==="hidden"||(t.closest&&t.closest("input,textarea,select,[contenteditable],.tb"))}
+    function show(v){
+      box.classList.remove("snap");
+      pill.style.transform="translateY("+(v-50)+"px)";pill.style.opacity=Math.min(1,v/40);
+      pill.textContent=v>=TH?"Thả để làm mới":"Kéo xuống để làm mới";
+    }
+    function hide(){box.classList.add("snap");pill.style.transform="translateY(-60px)";pill.style.opacity=0}
+    window.addEventListener("touchstart",function(e){
+      armed=e.touches.length===1&&window.scrollY<=0&&!blocked(e.target);pulling=false;d=0;sy=armed?e.touches[0].clientY:0;
+    },{passive:true});
+    window.addEventListener("touchmove",function(e){
+      if(!armed)return;
+      var dy=e.touches[0].clientY-sy;
+      if(!pulling){if(dy>10&&window.scrollY<=0)pulling=true;else{if(dy<-10)armed=false;return}}
+      e.preventDefault();d=Math.min(dy*0.5,100);show(d);
+    },{passive:false});
+    function end(){
+      if(!armed||!pulling){armed=false;return}
+      armed=false;pulling=false;
+      if(d>=TH){
+        pill.textContent="Đang làm mới…";pill.style.transform="translateY(10px)";pill.style.opacity=1;
+        setTimeout(function(){location.reload()},250);
+      }else hide();
+    }
+    window.addEventListener("touchend",end,{passive:true});
+    window.addEventListener("touchcancel",function(){armed=false;if(pulling){pulling=false;hide()}},{passive:true});
+  })();
   var _rt=renderTasks,_rl=renderLogs,_rg=renderGoals;
   renderTasks=function(){_rt.apply(this,arguments);setupClamp()};
   renderLogs=function(){_rl.apply(this,arguments);setupClamp()};
