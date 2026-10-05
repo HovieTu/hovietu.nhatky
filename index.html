@@ -118,6 +118,11 @@ html{overscroll-behavior-y:contain}
 .dateline #today{flex:none}
 #sync{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;opacity:.85}
 #sync:not(:empty)::before{content:"· "}
+.remind{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.remind button{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:5px 11px;cursor:pointer}
+.remind .r-late{background:var(--bad-t);color:var(--bad);border-color:transparent;font-weight:500}
+.remind .r-today{background:var(--warn-t);color:var(--warn);border-color:transparent;font-weight:500}
+.remind .r-goal{background:var(--acc-t);color:var(--acc);border-color:transparent;font-weight:500}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -170,6 +175,7 @@ html{overscroll-behavior-y:contain}
     <div class="row" style="flex:none;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost hbtn" id="acct" hidden aria-label="Tài khoản" title="Tài khoản" style="min-width:0;width:42px;height:42px;padding:0;border-radius:50%;font-weight:700;background:var(--acc-t);border-color:var(--acc);color:var(--acc)"></button><button class="btn ghost hbtn" id="backup" style="min-width:0">Sao lưu</button><button class="btn ghost hbtn" id="theme" style="min-width:0" aria-label="Đổi giao diện sáng/tối">Sáng/Tối</button></div>
   </div>
 
+  <div class="remind" id="remind" hidden></div>
   <div class="stats" id="stats"></div>
 
   <div class="tabs" role="tablist">
@@ -503,6 +509,82 @@ html{overscroll-behavior-y:contain}
   var rzT=null;
   window.addEventListener("resize",function(){clearTimeout(rzT);rzT=setTimeout(resetClamp,200)});
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(resetClamp);
+  /* ---------- Nhắc khi mở app ---------- */
+  function renderRemind(){
+    var el=$("remind"),now=new Date(),hm=pad2(now.getHours())+":"+pad2(now.getMinutes()),
+        lim=new Date(now.getTime()+120*60000),sameDay=iso(lim)===iso(now),hm2=pad2(lim.getHours())+":"+pad2(lim.getMinutes()),
+        today=iso(now),late=0,tod=0,soon=0,cal=0,gr=0;
+    S.tasks.forEach(function(t){
+      if(t.status==="done"||!t.due)return;
+      if(isLate(t))late++;
+      else if(t.due===today){tod++;if(t.dueTime&&t.dueTime>=hm&&(!sameDay||t.dueTime<=hm2))soon++}
+      if(t.due>=today)cal++;
+    });
+    S.goals.forEach(function(g){
+      if(g.status==="active"&&Math.floor((Date.now()-(g.reviewed||g.created||Date.now()))/864e5)>=7)gr++;
+    });
+    var h="";
+    if(late)h+='<button class="r-late" data-go="tasks">'+late+' việc quá hạn</button>';
+    if(tod)h+='<button class="r-today" data-go="tasks">'+tod+' việc đến hạn hôm nay</button>';
+    if(soon)h+='<button class="r-today" data-go="tasks">'+soon+' việc sắp đến giờ (2 giờ tới)</button>';
+    if(gr)h+='<button class="r-goal" data-go="goals">'+gr+' mục tiêu cần xem lại</button>';
+    if(cal)h+='<button data-go="cal">Thêm '+cal+' việc vào lịch</button>';
+    el.innerHTML=h;el.hidden=!h;
+  }
+
+  /* ---------- Xuất sang lịch (.ics) ---------- */
+  function icsEsc(x){return String(x||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n")}
+  function icsFold(l){var o="";while(l.length>70){o+=l.slice(0,70)+"\r\n ";l=l.slice(70)}return o+l}
+  function ymd(d){return d.replace(/-/g,"")}
+  function localStamp(d){return d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+"T"+pad2(d.getHours())+pad2(d.getMinutes())+"00"}
+  function buildICS(tasks,lead,dayLead){
+    var L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Nhat ky cong viec//VI","CALSCALE:GREGORIAN","METHOD:PUBLISH"],
+        stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+    tasks.forEach(function(t){
+      L.push("BEGIN:VEVENT","UID:"+t.id+"@nhatky","DTSTAMP:"+stamp,"SUMMARY:"+icsEsc(t.title));
+      var trig;
+      if(t.dueTime){
+        var st=new Date(t.due+"T"+t.dueTime+":00"),en=new Date(st.getTime()+30*60000);
+        L.push("DTSTART:"+localStamp(st),"DTEND:"+localStamp(en));
+        trig="-PT"+(+lead)+"M";
+      }else{
+        var nx=new Date(t.due+"T00:00:00");nx.setDate(nx.getDate()+1);
+        L.push("DTSTART;VALUE=DATE:"+ymd(t.due),"DTEND;VALUE=DATE:"+ymd(iso(nx)));
+        trig=dayLead==="evening"?"-PT4H":"PT9H";
+      }
+      if(t.note)L.push("DESCRIPTION:"+icsEsc(t.note));
+      L.push("BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(t.title),"TRIGGER:"+trig,"END:VALARM","END:VEVENT");
+    });
+    L.push("END:VCALENDAR");
+    return L.map(icsFold).join("\r\n")+"\r\n";
+  }
+  function deliverICS(text,name){
+    function download(){
+      var u=URL.createObjectURL(new Blob([text],{type:"text/calendar;charset=utf-8"})),a=document.createElement("a");
+      a.href=u;a.download=name;document.body.appendChild(a);a.click();
+      setTimeout(function(){a.remove();URL.revokeObjectURL(u)},4000);
+    }
+    var file=null;try{file=new File([text],name,{type:"text/calendar"})}catch(e){}
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:name}).catch(function(e){if(!e||e.name!=="AbortError")download()});
+    }else download();
+  }
+  function openCalDialog(tasks){
+    tasks=tasks.filter(function(t){return t.due});
+    if(!tasks.length){dialog('<div>Không có việc nào có hạn để thêm vào lịch.</div>',[["Đóng"]]);return}
+    var timed=tasks.some(function(t){return t.dueTime}),day=tasks.some(function(t){return !t.dueTime});
+    dialog('<b style="font-size:18px">Thêm vào lịch</b><div class="file">'+tasks.length+' việc sẽ được tạo thành tệp lịch (.ics). Chọn thời điểm báo thức nhắc:</div>'+
+      (timed?'<label class="file">Việc có giờ<select id="cLead" style="margin-top:4px"><option value="0">Đúng giờ</option><option value="5">Trước 5 phút</option><option value="15" selected>Trước 15 phút</option><option value="30">Trước 30 phút</option><option value="60">Trước 1 giờ</option><option value="1440">Trước 1 ngày</option></select></label>':'')+
+      (day?'<label class="file">Việc chỉ có ngày<select id="cDay" style="margin-top:4px"><option value="morning">9:00 sáng ngày đến hạn</option><option value="evening">8:00 tối hôm trước</option></select></label>':'')+
+      '<div class="file">Sau khi tạo, hãy chọn Lịch (hoặc mở tệp .ics vừa tải) để thêm các sự kiện. Việc sửa sau đó trong app không tự cập nhật lịch.</div>',
+      [["Hủy"],["Thêm vào lịch","p"]],function(i,o){
+        if(i!==1)return false;
+        var lead=o.querySelector("#cLead"),dl=o.querySelector("#cDay");
+        var name=tasks.length===1?(fold(tasks[0].title).replace(/[^a-z0-9]+/g,"-").slice(0,30).replace(/^-|-$/g,"")||"viec")+".ics":"nhat-ky-cong-viec.ics";
+        deliverICS(buildICS(tasks,lead?lead.value:15,dl?dl.value:"morning"),name);
+        return false;
+      });
+  }
   function pad2(n){return String(n).padStart(2,"0")}
   function fmtTs(ms){var d=new Date(ms);return pad2(d.getHours())+":"+pad2(d.getMinutes())+" "+pad2(d.getDate())+"/"+pad2(d.getMonth()+1)+"/"+d.getFullYear()}
   function stamp(o){return o.created?'<div class="stamp">Tạo lúc '+fmtTs(o.created)+(o.updated?' · Sửa lúc '+fmtTs(o.updated):'')+'</div>':''}
@@ -755,7 +837,7 @@ html{overscroll-behavior-y:contain}
         '<select class="st" aria-label="Đổi trạng thái">'+
           Object.keys(LABEL).map(function(k){return '<option value="'+k+'"'+(k===t.status?" selected":"")+'>'+LABEL[k]+'</option>'}).join("")+
         '</select>'+
-        '<button class="link" data-act="edit">Sửa</button>'+
+        (t.due&&t.status!=="done"?'<button class="link" data-act="cal">Thêm vào lịch</button>':'')+'<button class="link" data-act="edit">Sửa</button>'+
         '<button class="link" data-act="del">Xóa</button></div>'+stamp(t)+'</div></div>';
     }).join("");
   }
@@ -768,7 +850,7 @@ html{overscroll-behavior-y:contain}
     }).join(""):'<div class="empty">'+(S.lq.trim()?'Không tìm thấy nhật ký phù hợp.':'Không có nhật ký nào trong khoảng này.')+'</div>';
   }
 
-  function renderAll(){renderPeriod();renderStats();renderTasks();renderLogs();renderGoals();refreshGoalSelect()}
+  function renderAll(){renderRemind();renderPeriod();renderStats();renderTasks();renderLogs();renderGoals();refreshGoalSelect()}
 
   function resetForm(){
     dropDraft("newtask");
@@ -969,6 +1051,7 @@ html{overscroll-behavior-y:contain}
     var act=e.target.dataset.act;
     if(act==="del")confirmDel('Bạn có chắc muốn xóa việc <b>'+esc(t.title)+'</b>?',function(){S.tasks=S.tasks.filter(function(x){return x.id!==id});save();renderAll()});
     else if(act==="edit")openEdit(t);
+    else if(act==="cal")openCalDialog([t]);
   };
   $("list").onchange=function(e){
     var card=e.target.closest(".task");if(!card)return;
@@ -1116,6 +1199,14 @@ html{overscroll-behavior-y:contain}
   renderTasks=function(){_rt.apply(this,arguments);setupClamp()};
   renderLogs=function(){_rl.apply(this,arguments);setupClamp()};
   renderGoals=function(){_rg.apply(this,arguments);setupClamp()};
+  $("remind").onclick=function(e){
+    var b=e.target.closest("button[data-go]");if(!b)return;var go=b.dataset.go;
+    if(go==="cal"){openCalDialog(S.tasks.filter(function(t){return t.status!=="done"&&t.due&&t.due>=iso(new Date())}));return}
+    if(go==="tasks"){S.mode="all";S.off=0;renderAll()}
+    document.querySelector('.tab[data-view="'+go+'"]').click();
+    window.scrollTo({top:0,behavior:"smooth"});
+  };
+  setInterval(renderRemind,60000);
   makeRT($("lText"));
   try{document.execCommand("defaultParagraphSeparator",false,"div")}catch(e){}
   applyNewDrafts();
