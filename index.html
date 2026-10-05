@@ -161,7 +161,7 @@ html{overscroll-behavior-y:contain}
     <div>
       <h1>Nhật ký công việc</h1>
       <p class="sub" id="today"></p>
-      <p class="sub" id="sync" style="margin-top:-14px;font-size:13px">Đang lưu trên thiết bị này</p>
+      <p class="sub" id="sync" hidden style="margin-top:-14px;font-size:13px"></p>
     </div>
     <div class="row" style="flex:none;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost hbtn" id="acct" hidden aria-label="Tài khoản" title="Tài khoản" style="min-width:0;width:42px;height:42px;padding:0;border-radius:50%;font-weight:700;background:var(--acc-t);border-color:var(--acc);color:var(--acc)"></button><button class="btn ghost hbtn" id="backup" style="min-width:0">Sao lưu</button><button class="btn ghost hbtn" id="theme" style="min-width:0" aria-label="Đổi giao diện sáng/tối">Sáng/Tối</button></div>
   </div>
@@ -514,7 +514,7 @@ html{overscroll-behavior-y:contain}
   var cloud=false,F=null,AUTH=null,DBH=null,uidv=null,timer=null,dirty=false,unsubs=[],sent={tasks:{},logs:{},goals:{}},first={tasks:true,logs:true,goals:true};
   var app=$("app");
   function configured(){return CFG.apiKey&&CFG.apiKey.indexOf("DÁN")!==0}
-  function setSync(t){$("sync").textContent=t}
+  function setSync(t){if(/^Đã đồng bộ/.test(t))t="";var el=$("sync");el.textContent=t;el.hidden=!t}
   function push(){
     if(!cloud||!uidv)return;clearTimeout(timer);dirty=true;
     timer=setTimeout(function(){
@@ -550,7 +550,7 @@ html{overscroll-behavior-y:contain}
   }}
   var ACCT="";
   function openAcct(){
-    dialog('<b style="font-size:18px">Tài khoản</b><div>Đang đăng nhập bằng<br><b style="overflow-wrap:anywhere">'+esc(ACCT)+'</b></div><div class="file">Việc, nhật ký và mục tiêu của bạn được đồng bộ giữa mọi thiết bị đăng nhập bằng tài khoản này.</div>',
+    dialog('<b style="font-size:18px">Tài khoản</b><div>Đang đăng nhập bằng<br><b style="overflow-wrap:anywhere">'+esc(ACCT)+'</b></div>',
       [["Đóng"],["Sao lưu và khôi phục"],["Đăng xuất","danger"]],function(i){
         if(i===1){$("backup").onclick();return false}
         if(i===2){F.signOut(AUTH)}
