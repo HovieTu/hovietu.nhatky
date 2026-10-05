@@ -111,6 +111,8 @@ html{overscroll-behavior-y:contain}
 #ptr.snap .pill{transition:transform .2s,opacity .2s}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:60;display:flex;gap:14px;align-items:center;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:92vw}
 .toast .link{color:var(--bg);font-weight:700;font-size:13px}
+.stat.total{flex:1 1 100%}
+.stat.total .bar{margin:8px 0 4px}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -176,6 +178,7 @@ html{overscroll-behavior-y:contain}
     <button class="chip" data-p="all" aria-pressed="true">Tất cả</button>
     <button class="chip" data-p="week" aria-pressed="false">Theo tuần</button>
     <button class="chip" data-p="month" aria-pressed="false">Theo tháng</button>
+    <button class="chip" data-p="year" aria-pressed="false">Theo năm</button>
     <span id="pnav" style="display:none;flex:1;align-items:center;gap:6px;min-width:220px"><button class="chip" data-nav="-1" aria-label="Trước">‹</button><span class="lbl" id="plbl"></span><button class="chip" data-nav="1" aria-label="Sau">›</button></span>
   </div>
 
@@ -673,6 +676,9 @@ html{overscroll-behavior-y:contain}
       a=new Date(d.getFullYear(),d.getMonth(),d.getDate()-day+S.off*7);
       b=new Date(a.getFullYear(),a.getMonth(),a.getDate()+6);
       lbl=fmt(iso(a)).slice(0,5)+" – "+fmt(iso(b));
+    }else if(S.mode==="year"){
+      a=new Date(d.getFullYear()+S.off,0,1);b=new Date(d.getFullYear()+S.off,11,31);
+      lbl="Năm "+a.getFullYear();
     }else{
       a=new Date(d.getFullYear(),d.getMonth()+S.off,1);
       b=new Date(a.getFullYear(),a.getMonth()+1,0);
@@ -690,9 +696,16 @@ html{overscroll-behavior-y:contain}
 
   function renderStats(){
     TODAY=iso(new Date());
-    var c={todo:0,plan:0,done:0},late=0;
-    S.tasks.forEach(function(t){c[t.status]++;if(isLate(t))late++});
+    var r=range(),c={todo:0,plan:0,done:0},late=0,tot=0;
+    S.tasks.forEach(function(t){
+      if(!inRange(r,t.due||iso(new Date(t.created))))return;
+      tot++;c[t.status]++;if(isLate(t))late++;
+    });
+    var pct=tot?Math.round(c.done*100/tot):0;
     $("stats").innerHTML=
+      '<div class="stat total"><b>'+tot+'</b><span> việc · '+esc(r?r.lbl:"Tất cả thời gian")+'</span>'+
+      '<div class="bar" role="progressbar" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100"><i style="width:'+pct+'%"></i></div>'+
+      '<span>'+pct+'% hoàn thành ('+c.done+'/'+tot+')</span></div>'+
       '<div class="stat"><b>'+c.todo+'</b><span>Chưa làm</span></div>'+
       '<div class="stat"><b>'+c.plan+'</b><span>Ưu tiên làm</span></div>'+
       '<div class="stat"><b>'+c.done+'</b><span>Đã hoàn thành</span></div>'+
