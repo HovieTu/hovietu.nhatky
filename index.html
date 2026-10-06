@@ -147,6 +147,9 @@ html{overscroll-behavior-y:contain}
 .dayh:first-child{margin-top:4px}
 .lmeta{font-size:12.5px;color:var(--mute)}
 .log .top .t{margin-top:0}
+.dueg{font-weight:700;font-size:13px;margin:12px 0 2px}
+.due-item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line)}
+.due-item input{width:18px;height:18px;margin-top:2px;accent-color:var(--acc);flex:none}
 .badge.hot{background:var(--warn-t);color:var(--warn);font-weight:500}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .dlg{background:var(--card);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;display:grid;gap:12px}
@@ -529,6 +532,43 @@ html{overscroll-behavior-y:contain}
   window.addEventListener("resize",function(){clearTimeout(rzT);rzT=setTimeout(resetClamp,200)});
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(resetClamp);
   /* ---------- Nhắc khi mở app ---------- */
+  function openDueList(){
+    var o=document.createElement("div");o.className="ov";
+    o.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Việc cần chú ý" style="max-width:520px;max-height:92vh;overflow:auto"><b style="font-size:18px">Việc cần chú ý</b><div class="dbody"></div><div class="acts"><button class="btn ghost" id="dClose">Đóng</button></div></div>';
+    document.body.appendChild(o);document.body.style.overflow="hidden";
+    function close(){o.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)}
+    function onKey(e){if(e.key==="Escape"&&o.parentNode&&o.parentNode.lastElementChild===o)close()}
+    document.addEventListener("keydown",onKey);
+    function key(t){return (t.due||"")+" "+(t.dueTime||"99:99")}
+    function item(t,late){
+      var when=late?"Quá hạn "+fmt(t.due)+(t.dueTime?" "+t.dueTime:""):"Hôm nay"+(t.dueTime?" "+t.dueTime:"");
+      return '<div class="due-item" data-id="'+esc(t.id)+'"><input type="checkbox" class="dchk" aria-label="Đánh dấu hoàn thành">'+
+        '<div style="flex:1;min-width:0"><div class="t" style="overflow-wrap:anywhere">'+esc(t.title)+'</div>'+
+        '<div class="lmeta"><span style="color:'+(late?'var(--bad)':'var(--warn)')+';font-weight:500">'+esc(when)+'</span> · '+esc(LABEL[t.status]||"")+(t.hot?' · Ưu tiên cao':'')+'</div></div>'+
+        '<button class="link" data-act="dedit">Sửa</button></div>';
+    }
+    function draw(){
+      var today=iso(new Date()),all=S.tasks.filter(function(t){return t.status!=="done"&&t.due}),
+          late=all.filter(isLate).sort(function(a,b){return key(a)<key(b)?-1:1}),
+          tod=all.filter(function(t){return !isLate(t)&&t.due===today}).sort(function(a,b){return key(a)<key(b)?-1:1}),h="";
+      if(late.length)h+='<div class="dueg" style="color:var(--bad)">Quá hạn · '+late.length+'</div>'+late.map(function(t){return item(t,true)}).join("");
+      if(tod.length)h+='<div class="dueg" style="color:var(--warn)">Hôm nay · '+tod.length+'</div>'+tod.map(function(t){return item(t,false)}).join("");
+      o.querySelector(".dbody").innerHTML=h||'<div class="empty" style="margin-top:10px">Không còn việc nào quá hạn hoặc đến hạn hôm nay.</div>';
+    }
+    draw();
+    o.addEventListener("change",function(e){
+      if(!e.target.classList.contains("dchk"))return;
+      var t=S.tasks.find(function(x){return x.id===e.target.closest(".due-item").dataset.id});
+      if(t){t.status="done";save();renderAll();draw()}
+    });
+    o.addEventListener("click",function(e){
+      if(e.target.id==="dClose"){close();return}
+      if(e.target.dataset.act==="dedit"){
+        var t=S.tasks.find(function(x){return x.id===e.target.closest(".due-item").dataset.id});
+        if(t){close();openEdit(t)}
+      }
+    });
+  }
   function renderRemind(){
     var el=$("remind"),late=0,tod=0,gr=0;
     S.tasks.forEach(function(t){
@@ -561,6 +601,24 @@ html{overscroll-behavior-y:contain}
     if(am&&h===12)h=0;
     if(h>23||mi>59)return null;
     return pad2(h)+":"+pad2(mi);
+  }
+  function maskTime(raw,del){
+    if(/^\d{1,2}:?\s*[hHgG]\s*\d{0,2}$/.test(raw))raw=raw.replace(/[hHgG]/,":").replace(/::/,":");
+    if(/[^\d:\s]/.test(raw))return null;
+    var ds=raw.replace(/\D/g,"");
+    if(!ds)return "";
+    var h,m="",hasColon=raw.indexOf(":")>-1;
+    if(hasColon){
+      var i=raw.indexOf(":"),hp=raw.slice(0,i).replace(/\D/g,"").slice(0,2),mp=raw.slice(i+1).replace(/\D/g,"").slice(0,2);
+      if(!hp)return mp?"00:"+mp:"";
+      h=hp.length===1?"0"+hp:hp;m=mp;
+    }else{
+      if(ds.length===1)return (+ds>2&&!del)?"0"+ds+":":ds;
+      var h2=ds.slice(0,2);
+      if(+h2>23){h="0"+ds[0];m=ds.slice(1,3)}else{h=h2;m=ds.slice(2,4)}
+    }
+    if(m.length===2){var t=(+h)*60+(+m);h=pad2(Math.floor(t/60)%24);m=pad2(t%60)}
+    return (hasColon||m)?h+":"+m:(del?h:h+":");
   }
   var TL=null,TLI=null,TLHL=-1;
   function timeList(){
@@ -631,7 +689,11 @@ html{overscroll-behavior-y:contain}
     chev.addEventListener("click",function(){if(TL&&!TL.hidden&&TLI===inp)closeTL();else openTL(inp)});
     inp.addEventListener("focus",function(){openTL(inp)});
     inp.addEventListener("click",function(){if(!TL||TL.hidden||TLI!==inp)openTL(inp)});
-    inp.addEventListener("input",function(){mark(false);if(TLI===inp)tlHighlight(inp,true)});
+    inp.addEventListener("input",function(e){
+      var raw=desc.get.call(inp),del=!!(e&&e.inputType&&e.inputType.indexOf("delete")===0),mk=maskTime(raw,del);
+      if(mk!==null&&mk!==raw)desc.set.call(inp,mk);
+      mark(false);if(TLI===inp)tlHighlight(inp,true);
+    });
     inp.addEventListener("blur",function(){commit();inp.dispatchEvent(new Event("change",{bubbles:true}));setTimeout(function(){if(TLI===inp&&document.activeElement!==inp&&!(TL&&TL.matches(":hover")))closeTL()},120)});
     inp.addEventListener("keydown",function(e){
       var open=TL&&!TL.hidden&&TLI===inp;
@@ -900,7 +962,7 @@ html{overscroll-behavior-y:contain}
       '<div class="stat"><b>'+c.todo+'</b><span>Chưa làm</span></div>'+
       '<div class="stat"><b>'+c.plan+'</b><span>Ưu tiên làm</span></div>'+
       '<div class="stat"><b>'+c.done+'</b><span>Đã hoàn thành</span></div>'+
-      '<div class="stat"><b style="color:'+(late?'var(--bad)':'inherit')+'">'+late+'</b><span>Quá hạn</span></div>';
+      '<div class="stat" data-open="due" role="button" tabindex="0" style="cursor:pointer"><b style="color:'+(late?'var(--bad)':'inherit')+'">'+late+'</b><span>Quá hạn</span></div>';
   }
 
   function renderTasks(){
@@ -1322,9 +1384,11 @@ html{overscroll-behavior-y:contain}
   renderTasks=function(){_rt.apply(this,arguments);setupClamp()};
   renderLogs=function(){_rl.apply(this,arguments);setupClamp()};
   renderGoals=function(){_rg.apply(this,arguments);setupClamp()};
+  $("stats").onclick=function(e){if(e.target.closest("[data-open=due]"))openDueList()};
+  $("stats").onkeydown=function(e){if((e.key==="Enter"||e.key===" ")&&e.target.closest("[data-open=due]")){e.preventDefault();openDueList()}};
   $("remind").onclick=function(e){
     var b=e.target.closest("button[data-go]");if(!b)return;var go=b.dataset.go;
-    if(go==="tasks"){S.mode="all";S.off=0;renderAll()}
+    if(go==="tasks"){openDueList();return}
     document.querySelector('.tab[data-view="'+go+'"]').click();
     window.scrollTo({top:0,behavior:"smooth"});
   };
